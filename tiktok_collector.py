@@ -378,7 +378,8 @@ class TikFlyCollector:
                 while len(videos) < max_videos and pages < max_pages:
                     params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
                     data   = self._get('/api/challenge/posts', params)
-                    batch  = self._extract_videos_from_response(data, hashtag_filter=hashtag)
+                    # challenge/posts est déjà filtré par TikTok — pas de filtre supplémentaire
+                    batch  = self._extract_videos_from_response(data)
                     videos.extend(batch)
 
                     has_more = data.get('hasMore') or data.get('has_more') or False
