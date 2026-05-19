@@ -211,12 +211,17 @@ class TikFlyCollector:
         try:
             resp = self.session.get(url, params=params, timeout=self.TIMEOUT)
             resp.raise_for_status()
+            if not resp.text or not resp.text.strip():
+                raise RuntimeError(f'Réponse vide (HTTP {resp.status_code}) pour {endpoint}')
             data = resp.json()
             if use_cache:
                 _cache_set(key, data)
             return data
         except requests.HTTPError as e:
-            raise RuntimeError(f'HTTP {resp.status_code}: {resp.text[:300]}') from e
+            body = resp.text[:300] if resp.text else '(vide)'
+            raise RuntimeError(f'HTTP {resp.status_code}: {body}') from e
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(f'Erreur réseau: {e}') from e
 
@@ -295,71 +300,102 @@ class TikFlyCollector:
         return {'user': user, 'videos': videos}
 
 
-    def get_challenge_id(self, hashtag: str) -> str:
-        """Résout un nom de hashtag en challengeId numérique via /api/challenge/info."""
-        hashtag = hashtag.lstrip('#').strip()
-        data = self._get('/api/challenge/info', {'challengeName': hashtag}, use_cache=True)
-        info = (
-            data.get('challengeInfo')
-            or (data.get('data') or {}).get('challengeInfo')
-            or data.get('data') or {}
+    def _extract_videos_from_response(self, data: dict, hashtag_filter: str = '') -> list[dict]:
+        """Extrait et normalise les vidéos depuis n'importe quelle réponse TikFly."""
+        raw_items = (
+            data.get('itemList')
+            or (data.get('data') or {}).get('itemList')
+            or data.get('item_list')
+            or data.get('items') or []
         )
-        cid = (
-            info.get('id')
-            or info.get('challengeId')
-            or (info.get('challenge') or {}).get('id')
-            or (info.get('challenge') or {}).get('challengeId')
-            or ''
-        )
-        if not cid:
-            raise RuntimeError(f'challengeId introuvable pour #{hashtag} (réponse: {str(data)[:200]})')
-        return str(cid)
+        videos = []
+        for item in raw_items:
+            # Ignorer les items sans vidéo (résultats user dans search/general)
+            if not item.get('id') and not item.get('aweme_id'):
+                continue
+            v = normalize_tiktok_video(item)
+            author_raw   = item.get('author') or {}
+            author_stats = item.get('authorStats') or item.get('stats') or {}
+            if author_raw:
+                v['_author'] = normalize_tiktok_user(author_raw, author_stats)
+            videos.append(v)
+        return videos
 
     def search_hashtag(self, hashtag: str, max_videos: int = 50) -> list[dict]:
         """
         Vidéos d'un hashtag via TikFly.
-        Flux : /api/challenge/info (→ challengeId) → /api/challenge/posts (→ vidéos)
+        Stratégie 1 : /api/search/general?keyword=#{hashtag}  (pas besoin de challengeId)
+        Stratégie 2 : /api/challenge/info → challengeId → /api/challenge/posts
         """
         hashtag = hashtag.lstrip('#').strip()
-
-        # Étape 1 : résoudre le challengeId
-        challenge_id = self.get_challenge_id(hashtag)
-        logger.info(f'[tikfly] #{hashtag} → challengeId={challenge_id}')
-
-        # Étape 2 : récupérer les vidéos
         videos: list[dict] = []
-        cursor = '0'
-        pages = 0
-        max_pages = min(5, max(1, (max_videos // 20) + 1))
+        last_error: Exception | None = None
 
-        while len(videos) < max_videos and pages < max_pages:
-            params: dict = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
-            try:
-                data = self._get('/api/challenge/posts', params)
-            except Exception as e:
-                logger.warning(f'[tikfly] challenge/posts p{pages}: {e}')
-                if pages == 0:
-                    raise RuntimeError(f'Erreur récupération posts #{hashtag}: {e}') from e
-                break
+        # ── Stratégie 1 : search/general ─────────────────────────────────────
+        try:
+            cursor    = 0
+            search_id = '0'
+            pages     = 0
+            max_pages = min(5, max(1, (max_videos // 20) + 1))
 
-            raw_items = (
-                data.get('itemList')
-                or (data.get('data') or {}).get('itemList')
-                or data.get('items') or []
+            while len(videos) < max_videos and pages < max_pages:
+                params: dict = {'keyword': f'#{hashtag}', 'cursor': cursor, 'search_id': search_id}
+                data     = self._get('/api/search/general', params)
+                batch    = self._extract_videos_from_response(data)
+                videos.extend(batch)
+
+                cursor    = data.get('cursor') or 0
+                search_id = (data.get('log_pb') or {}).get('impr_id') or search_id
+                has_more  = data.get('has_more') or data.get('hasMore') or False
+                pages += 1
+                if not has_more or not batch:
+                    break
+
+            if videos:
+                logger.info(f'[tikfly] search/general #{hashtag} → {len(videos)} vidéos')
+                return videos[:max_videos]
+
+        except Exception as e:
+            last_error = e
+            logger.warning(f'[tikfly] search/general failed for #{hashtag}: {e}')
+
+        # ── Stratégie 2 : challenge/info → challenge/posts ────────────────────
+        try:
+            info_data    = self._get('/api/challenge/info', {'challengeName': hashtag})
+            info         = (
+                info_data.get('challengeInfo')
+                or (info_data.get('data') or {}).get('challengeInfo')
+                or info_data.get('data') or {}
             )
-            for item in raw_items:
-                v = normalize_tiktok_video(item)
-                author_raw   = item.get('author') or {}
-                author_stats = item.get('authorStats') or item.get('stats') or {}
-                if author_raw:
-                    v['_author'] = normalize_tiktok_user(author_raw, author_stats)
-                videos.append(v)
+            challenge_id = str(
+                info.get('id') or info.get('challengeId')
+                or (info.get('challenge') or {}).get('id') or ''
+            )
+            if not challenge_id:
+                raise RuntimeError(f'challengeId introuvable (réponse: {str(info_data)[:150]})')
 
-            has_more = data.get('hasMore') or (data.get('data') or {}).get('hasMore') or False
-            cursor   = str(data.get('cursor') or (data.get('data') or {}).get('cursor') or '0')
-            pages += 1
-            if not has_more or cursor == '0':
-                break
+            logger.info(f'[tikfly] #{hashtag} → challengeId={challenge_id}')
+            cursor = '0'
+            pages  = 0
+
+            while len(videos) < max_videos and pages < 5:
+                params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
+                data   = self._get('/api/challenge/posts', params)
+                batch  = self._extract_videos_from_response(data)
+                videos.extend(batch)
+
+                has_more = data.get('hasMore') or (data.get('data') or {}).get('hasMore') or False
+                cursor   = str(data.get('cursor') or (data.get('data') or {}).get('cursor') or '0')
+                pages += 1
+                if not has_more or not batch:
+                    break
+
+        except Exception as e:
+            last_error = e
+            logger.warning(f'[tikfly] challenge/posts failed for #{hashtag}: {e}')
+
+        if not videos:
+            raise RuntimeError(str(last_error) if last_error else f'Aucune vidéo pour #{hashtag}')
 
         return videos[:max_videos]
 
