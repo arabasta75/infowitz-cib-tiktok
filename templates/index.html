@@ -288,16 +288,42 @@
         </div>
 
         <!-- Mode hashtag -->
-        <div id="mode-hashtag" class="search-bar" style="display:none">
-          <h3>Scraper par hashtag</h3>
-          <div class="hashtag-row">
-            <input id="hashtag-input" type="text" placeholder="#hashtag ou mot-clé" style="max-width:260px">
-            <input id="hashtag-maxvid" type="number" value="50" min="10" max="200" title="Max vidéos à scraper">
-            <span style="color:var(--text3);font-size:11px">vidéos max</span>
-            <button class="btn-primary" onclick="startHashtagScrape()">▶ Scraper</button>
+        <div id="mode-hashtag" style="display:none">
+          <div class="search-bar">
+            <h3>Publications par hashtag</h3>
+            <div class="hashtag-row">
+              <input id="hashtag-input" type="text" placeholder="#hashtag ou mot-clé" style="max-width:260px">
+              <input id="hashtag-maxvid" type="number" value="30" min="10" max="100" title="Max vidéos">
+              <span style="color:var(--text3);font-size:11px">vidéos max</span>
+              <button class="btn-primary" id="hashtag-btn" onclick="fetchHashtagVideos()">▶ Scraper</button>
+            </div>
+            <div style="margin-top:10px;color:var(--text3);font-size:11px">
+              Récupère les publications récentes utilisant ce hashtag. Vous pouvez ensuite analyser les auteurs.
+            </div>
           </div>
-          <div style="margin-top:10px;color:var(--text3);font-size:11px">
-            Récupère les vidéos du hashtag via TikFly, extrait les auteurs uniques et les analyse automatiquement.
+
+          <!-- Résultats publications -->
+          <div id="hashtag-results" style="display:none">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+              <div id="hashtag-summary" style="font-size:13px;font-weight:600"></div>
+              <button class="btn-blue btn-sm" id="analyze-authors-btn" onclick="analyzeHashtagAuthors()" style="display:none">
+                🔍 Analyser les auteurs
+              </button>
+            </div>
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr>
+                  <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Publication</th>
+                  <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Auteur</th>
+                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Vues</th>
+                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Likes</th>
+                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Commentaires</th>
+                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Partages</th>
+                  <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Date</th>
+                </tr></thead>
+                <tbody id="hashtag-videos-body"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -443,12 +469,13 @@
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
-let _accounts    = [];
-let _currentJobId = null;
-let _jobPoll     = null;
-let _detailUid   = null;
-let _scoreUid    = null;
-let _scrapeMode  = 'handles';
+let _accounts       = [];
+let _currentJobId   = null;
+let _jobPoll        = null;
+let _detailUid      = null;
+let _scoreUid       = null;
+let _scrapeMode     = 'handles';
+let _hashtagAuthorIds = [];
 
 const TABS = ['analyse','results','cib','config'];
 
@@ -538,12 +565,81 @@ function startAnalysis() {
   _launchJob('/api/analyze', {handles});
 }
 
-// ── Analysis (hashtag) ────────────────────────────────────────────────────────
-function startHashtagScrape() {
+// ── Hashtag : publications ────────────────────────────────────────────────────
+async function fetchHashtagVideos() {
   const ht = document.getElementById('hashtag-input').value.trim().replace(/^#/,'');
   if (!ht) { toast('Entrez un hashtag', 'error'); return; }
-  const maxVid = parseInt(document.getElementById('hashtag-maxvid').value) || 50;
-  _launchJob('/api/scrape/hashtag', {hashtag: ht, max_videos: maxVid});
+  const maxVid = parseInt(document.getElementById('hashtag-maxvid').value) || 30;
+
+  const btn = document.getElementById('hashtag-btn');
+  btn.disabled = true; btn.textContent = '⏳ Chargement…';
+  document.getElementById('hashtag-results').style.display = 'none';
+  _hashtagAuthorIds = [];
+
+  try {
+    const r = await fetch('/api/hashtag/videos', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      credentials: 'include', body: JSON.stringify({hashtag: ht, max_videos: maxVid})
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) { toast(d.error || 'Erreur', 'error'); return; }
+
+    _hashtagAuthorIds = d.author_ids || [];
+    renderHashtagVideos(d);
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Scraper';
+  }
+}
+
+function renderHashtagVideos(d) {
+  const videos = d.videos || [];
+  const wrap   = document.getElementById('hashtag-results');
+  const tbody  = document.getElementById('hashtag-videos-body');
+  const authBtn = document.getElementById('analyze-authors-btn');
+
+  document.getElementById('hashtag-summary').innerHTML =
+    `<strong>${videos.length}</strong> publications · <strong>${_hashtagAuthorIds.length}</strong> auteurs uniques pour <span style="color:var(--accent)">#${escHtml(d.hashtag)}</span>`;
+
+  authBtn.style.display = _hashtagAuthorIds.length ? 'inline-block' : 'none';
+  authBtn.textContent   = `🔍 Analyser les ${_hashtagAuthorIds.length} auteurs`;
+
+  tbody.innerHTML = videos.map(v => {
+    const date = v.created_at ? v.created_at.slice(0,10) : '—';
+    const desc = v.desc ? escHtml(v.desc.slice(0, 80)) + (v.desc.length > 80 ? '…' : '') : '—';
+    const tags = v.hashtags.slice(0,3).map(t => `<span style="color:var(--accent);font-size:10px">#${escHtml(t)}</span>`).join(' ');
+    return `<tr>
+      <td style="padding:8px 12px;max-width:280px">
+        <div style="font-size:12px;color:var(--text);margin-bottom:3px">${desc}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${tags}</div>
+        ${v.music_title ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">🎵 ${escHtml(v.music_title.slice(0,40))}</div>` : ''}
+      </td>
+      <td style="padding:8px 12px;white-space:nowrap">
+        <div style="display:flex;align-items:center;gap:7px">
+          ${v.author_avatar ? `<img src="${escHtml(v.author_avatar)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">` : ''}
+          <div>
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600">@${escHtml(v.author_unique_id)}</div>
+            <div style="font-size:10px;color:var(--text3)">${fmtNum(v.author_followers)} abonnés${v.author_verified ? ' ✓' : ''}</div>
+          </div>
+        </div>
+      </td>
+      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.plays)}</td>
+      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.likes)}</td>
+      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.comments)}</td>
+      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.shares)}</td>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text3)">${date}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.style.display = 'block';
+}
+
+function analyzeHashtagAuthors() {
+  if (!_hashtagAuthorIds.length) return;
+  _launchJob('/api/scrape/hashtag', {handles: _hashtagAuthorIds});
+  setMode('handles');
+  toast(`Analyse de ${_hashtagAuthorIds.length} auteurs lancée…`);
 }
 
 function _launchJob(endpoint, body) {

@@ -582,24 +582,88 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
         job.update({'status': 'error', 'error': _safe_err(e)})
 
 
-@app.route('/api/scrape/hashtag', methods=['POST'])
+@app.route('/api/hashtag/videos', methods=['POST'])
 @login_required
-def api_scrape_hashtag():
+def api_hashtag_videos():
+    """Étape 1 : retourne les publications d'un hashtag (sans analyser les profils)."""
     body     = request.get_json(silent=True) or {}
     hashtag  = (body.get('hashtag') or '').lstrip('#').strip()
     max_vids = min(int(body.get('max_videos', 50)), 200)
     if not hashtag:
         return jsonify({'error': 'hashtag requis'}), 400
 
+    cfg = get_cfg()
+    collector = _tk.get_collector(cfg)
+    if not collector:
+        return jsonify({'error': 'Aucune clé TikFly configurée'}), 400
+
+    try:
+        videos = collector.search_hashtag(hashtag, max_videos=max_vids)
+    except Exception as e:
+        return jsonify({'error': f'Erreur API: {_safe_err(e, 200)}'}), 500
+
+    # Sérialiser les vidéos pour le front
+    out = []
+    author_ids = set()
+    for v in videos:
+        author = v.get('_author') or {}
+        uid    = author.get('unique_id') or v.get('author_unique_id') or ''
+        if uid:
+            author_ids.add(uid)
+        out.append({
+            'video_id':     v.get('video_id', ''),
+            'desc':         v.get('desc', ''),
+            'created_at':   v.get('created_at', ''),
+            'plays':        v.get('plays', 0),
+            'likes':        v.get('likes', 0),
+            'comments':     v.get('comments', 0),
+            'shares':       v.get('shares', 0),
+            'hashtags':     v.get('hashtags', []),
+            'music_title':  v.get('music_title', ''),
+            'duration':     v.get('duration', 0),
+            'author_unique_id':  uid,
+            'author_name':       author.get('display_name') or uid,
+            'author_avatar':     author.get('avatar') or '',
+            'author_verified':   author.get('verified') or False,
+            'author_followers':  author.get('followers') or 0,
+        })
+
+    _db.sh_insert(user_id='admin', keyword=f'#{hashtag}', mode='hashtag_videos',
+                  account_count=len(author_ids))
+
+    return jsonify({
+        'ok':        True,
+        'hashtag':   hashtag,
+        'videos':    out,
+        'total':     len(out),
+        'author_ids': list(author_ids),
+    })
+
+
+@app.route('/api/scrape/hashtag', methods=['POST'])
+@login_required
+def api_scrape_hashtag():
+    """Étape 2 (optionnel) : analyse les profils d'une liste de handles."""
+    body     = request.get_json(silent=True) or {}
+    handles  = body.get('handles') or []
+    hashtag  = (body.get('hashtag') or '').lstrip('#').strip()
+    if isinstance(handles, str):
+        handles = [h.strip() for h in re.split(r'[\n,;]+', handles) if h.strip()]
+    handles = [h.lstrip('@').strip() for h in handles if h.strip()]
+    if not handles:
+        return jsonify({'error': 'Aucun handle fourni'}), 400
+    if len(handles) > 100:
+        return jsonify({'error': 'Max 100 comptes par batch'}), 400
+
     _jobs_gc()
     job_id = str(uuid.uuid4())
     with _JOBS_LOCK:
         _jobs[job_id] = {
             'id': job_id, 'status': 'running', 'progress': 0,
-            'msg': f'Scraping #{hashtag}…', 'ts': time.time(), 'results': [],
+            'msg': f'Analyse de {len(handles)} auteurs…', 'ts': time.time(), 'results': [],
         }
     cfg = get_cfg()
-    _executor.submit(_run_hashtag_scrape, job_id, hashtag, max_vids, cfg)
+    _executor.submit(_run_analysis, job_id, handles, cfg)
     return jsonify({'ok': True, 'job_id': job_id})
 
 
