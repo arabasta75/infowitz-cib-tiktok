@@ -346,72 +346,70 @@ class TikFlyCollector:
                     return str(ch['id'])
         return None
 
-    def search_hashtag(self, hashtag: str, max_videos: int = 100) -> list[dict]:
+    def search_videos(self, query: str, max_videos: int = 100) -> list[dict]:
         """
-        Vidéos d'un hashtag via TikFly.
-        Stratégie 1 : search/video (1 page) → extraire challengeId → challenge/posts (exhaustif)
-        Fallback    : search/video paginé si challengeId introuvable
+        Recherche de vidéos par mot-clé ou hashtag.
+        - Si query commence par # → flow hashtag : seed search/video → challengeId → challenge/posts
+        - Sinon → search/video paginé uniquement
         """
-        hashtag = hashtag.lstrip('#').strip()
+        query      = query.strip()
+        is_hashtag = query.startswith('#')
+        keyword    = query.lstrip('#').strip()
         videos: list[dict] = []
         last_error: Exception | None = None
 
-        # ── Seed : une page search/video pour récupérer le challengeId ────────
-        challenge_id: str | None = None
-        seed_items: list[dict] = []
-        try:
-            data = self._get('/api/search/video', {'keyword': f'#{hashtag}', 'cursor': 0, 'search_id': '0'})
-            seed_items = data.get('item_list') or data.get('itemList') or []
-            challenge_id = self._extract_challenge_id(hashtag, seed_items)
-            logger.info(f'[tikfly] #{hashtag} challengeId={challenge_id}')
-        except Exception as e:
-            last_error = e
-            logger.warning(f'[tikfly] seed search/video failed for #{hashtag}: {e}')
-
-        # ── Stratégie principale : challenge/posts (exhaustif) ────────────────
-        if challenge_id:
+        # ── Flow hashtag : challenge/posts exhaustif ──────────────────────────
+        if is_hashtag:
+            challenge_id: str | None = None
+            seed_items: list[dict] = []
             try:
-                cursor    = '0'
-                pages     = 0
-                max_pages = max(5, (max_videos // 30) + 2)
-
-                while len(videos) < max_videos and pages < max_pages:
-                    params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
-                    data   = self._get('/api/challenge/posts', params)
-                    # challenge/posts est déjà filtré par TikTok — pas de filtre supplémentaire
-                    batch  = self._extract_videos_from_response(data)
-                    videos.extend(batch)
-
-                    has_more = data.get('hasMore') or data.get('has_more') or False
-                    cursor   = str(data.get('cursor') or '0')
-                    pages   += 1
-                    if not has_more or not batch:
-                        break
-
-                if videos:
-                    logger.info(f'[tikfly] challenge/posts #{hashtag} → {len(videos)} vidéos en {pages} pages')
-                    return videos[:max_videos]
-
+                data = self._get('/api/search/video', {'keyword': f'#{keyword}', 'cursor': 0, 'search_id': '0'})
+                seed_items = data.get('item_list') or data.get('itemList') or []
+                challenge_id = self._extract_challenge_id(keyword, seed_items)
+                logger.info(f'[tikfly] #{keyword} challengeId={challenge_id}')
             except Exception as e:
                 last_error = e
-                logger.warning(f'[tikfly] challenge/posts failed for #{hashtag}: {e}')
+                logger.warning(f'[tikfly] seed search/video failed for #{keyword}: {e}')
 
-        # ── Fallback : search/video paginé ────────────────────────────────────
+            if challenge_id:
+                try:
+                    cursor    = '0'
+                    pages     = 0
+                    max_pages = max(5, (max_videos // 30) + 2)
+
+                    while len(videos) < max_videos and pages < max_pages:
+                        params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
+                        data   = self._get('/api/challenge/posts', params)
+                        batch  = self._extract_videos_from_response(data)
+                        videos.extend(batch)
+
+                        has_more = data.get('hasMore') or data.get('has_more') or False
+                        cursor   = str(data.get('cursor') or '0')
+                        pages   += 1
+                        if not has_more or not batch:
+                            break
+
+                    if videos:
+                        logger.info(f'[tikfly] challenge/posts #{keyword} → {len(videos)} vidéos en {pages} pages')
+                        return videos[:max_videos]
+
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f'[tikfly] challenge/posts failed for #{keyword}: {e}')
+
+        # ── search/video paginé (texte libre ou fallback hashtag) ─────────────
         try:
+            api_keyword = f'#{keyword}' if is_hashtag else keyword
             cursor      = 0
             search_id   = '0'
             pages       = 0
             empty_pages = 0
 
-            if seed_items:
-                batch = self._extract_videos_from_response({'item_list': seed_items}, hashtag_filter=hashtag)
-                videos.extend(batch)
-                pages = 1
-
             while len(videos) < max_videos and pages < 10:
-                params: dict = {'keyword': f'#{hashtag}', 'cursor': cursor, 'search_id': search_id}
+                params: dict = {'keyword': api_keyword, 'cursor': cursor, 'search_id': search_id}
                 data  = self._get('/api/search/video', params)
-                batch = self._extract_videos_from_response(data, hashtag_filter=hashtag)
+                ht_filter = keyword if is_hashtag else ''
+                batch = self._extract_videos_from_response(data, hashtag_filter=ht_filter)
                 videos.extend(batch)
 
                 cursor    = data.get('cursor') or 0
@@ -431,13 +429,18 @@ class TikFlyCollector:
 
         except Exception as e:
             last_error = e
-            logger.warning(f'[tikfly] search/video failed for #{hashtag}: {e}')
+            logger.warning(f'[tikfly] search/video failed for {query}: {e}')
 
         if not videos:
-            raise RuntimeError(str(last_error) if last_error else f'Aucune vidéo pour #{hashtag}')
+            raise RuntimeError(str(last_error) if last_error else f'Aucun résultat pour « {query} »')
 
-        logger.info(f'[tikfly] search/video fallback #{hashtag} → {len(videos)} vidéos')
+        logger.info(f'[tikfly] search/video {query} → {len(videos)} vidéos')
         return videos[:max_videos]
+
+    def search_hashtag(self, hashtag: str, max_videos: int = 100) -> list[dict]:
+        """Alias maintenu pour compatibilité."""
+        q = hashtag if hashtag.startswith('#') else f'#{hashtag}'
+        return self.search_videos(q, max_videos=max_videos)
 
     def get_video_comments(self, aweme_id: str, max_comments: int = 50) -> list[dict]:
         """Commentaires d'une vidéo TikTok."""

@@ -587,11 +587,11 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
 def api_hashtag_videos():
     """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
     body     = request.get_json(silent=True) or {}
-    hashtag  = (body.get('hashtag') or '').lstrip('#').strip()
+    query    = (body.get('hashtag') or '').strip()
     max_vids = min(int(body.get('max_videos', 100)), 500)
     max_coms = min(int(body.get('max_comments', 20)), 50)
-    if not hashtag:
-        return jsonify({'error': 'hashtag requis'}), 400
+    if not query:
+        return jsonify({'error': 'Requête vide'}), 400
 
     cfg = get_cfg()
     collector = _tk.get_collector(cfg)
@@ -599,7 +599,7 @@ def api_hashtag_videos():
         return jsonify({'error': 'Aucune clé TikFly configurée'}), 400
 
     try:
-        videos = collector.search_hashtag(hashtag, max_videos=max_vids)
+        videos = collector.search_videos(query, max_videos=max_vids)
     except Exception as e:
         return jsonify({'error': f'Erreur API: {_safe_err(e, 200)}'}), 500
 

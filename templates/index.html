@@ -287,18 +287,18 @@
           </div>
         </div>
 
-        <!-- Mode hashtag -->
+        <!-- Mode hashtag / recherche texte -->
         <div id="mode-hashtag" style="display:none">
           <div class="search-bar">
-            <h3>Publications par hashtag</h3>
+            <h3>Recherche de publications</h3>
             <div class="hashtag-row">
-              <input id="hashtag-input" type="text" placeholder="#hashtag ou mot-clé" style="max-width:260px">
+              <input id="hashtag-input" type="text" placeholder="#hashtag  ou  mot-clé libre" style="max-width:300px">
               <input id="hashtag-maxvid" type="number" value="100" min="10" max="500" title="Max vidéos">
               <span style="color:var(--text3);font-size:11px">vidéos max</span>
               <button class="btn-primary" id="hashtag-btn" onclick="fetchHashtagVideos()">▶ Scraper</button>
             </div>
             <div style="margin-top:10px;color:var(--text3);font-size:11px">
-              Récupère les publications récentes utilisant ce hashtag. Vous pouvez ensuite analyser les auteurs.
+              Préfixe <b>#</b> pour un hashtag (page challenge TikTok, résultats exhaustifs) · Sans # pour une recherche textuelle libre.
             </div>
           </div>
 
@@ -555,8 +555,8 @@ function startAnalysis() {
 
 // ── Hashtag : publications ────────────────────────────────────────────────────
 async function fetchHashtagVideos() {
-  const ht = document.getElementById('hashtag-input').value.trim().replace(/^#/,'');
-  if (!ht) { toast('Entrez un hashtag', 'error'); return; }
+  const ht = document.getElementById('hashtag-input').value.trim();
+  if (!ht) { toast('Entrez un hashtag ou un mot-clé', 'error'); return; }
   const maxVid = parseInt(document.getElementById('hashtag-maxvid').value) || 30;
 
   const btn = document.getElementById('hashtag-btn');
