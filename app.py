@@ -470,25 +470,36 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
             return
 
         job['msg'] = f'Scraping #{hashtag}…'
-        videos = collector.search_hashtag(hashtag, max_videos=max_videos)
+        try:
+            videos = collector.search_hashtag(hashtag, max_videos=max_videos)
+        except Exception as e:
+            job.update({'status': 'error', 'error': f'Erreur API hashtag: {_safe_err(e, 200)}'})
+            return
 
-        # Extraire les auteurs uniques
-        authors: dict[str, dict] = {}
+        if not videos:
+            job.update({'status': 'error', 'error': f'Aucune vidéo trouvée pour #{hashtag}'})
+            return
+
+        # Extraire les handles uniques — _author en priorité, sinon author_unique_id
+        author_ids: set[str] = set()
         for v in videos:
-            author = v.get('_author')
-            if author and author.get('unique_id'):
-                uid = author['unique_id']
-                if uid not in authors:
-                    authors[uid] = author
+            uid = (v.get('_author') or {}).get('unique_id') or v.get('author_unique_id') or ''
+            if uid:
+                author_ids.add(uid)
 
-        job['msg'] = f'{len(authors)} comptes trouvés, analyse en cours…'
+        if not author_ids:
+            job.update({'status': 'error',
+                        'error': f'{len(videos)} vidéos trouvées mais aucun auteur extractible (données API incomplètes)'})
+            return
+
+        job['msg'] = f'{len(author_ids)} comptes trouvés depuis #{hashtag}, analyse en cours…'
         job['progress'] = 20
 
         results = []
         manual_overrides = _db.tk_get_manual_overrides()
-        total = len(authors)
+        total = len(author_ids)
 
-        for i, (uid, user) in enumerate(authors.items()):
+        for i, uid in enumerate(author_ids):
             job['msg'] = f'Analyse @{uid} ({i+1}/{total})…'
             job['progress'] = 20 + int((i / max(total, 1)) * 75)
 

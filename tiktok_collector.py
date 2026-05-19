@@ -302,16 +302,41 @@ class TikFlyCollector:
         cursor = None
         pages = 0
         max_pages = min(5, max(1, (max_videos // 20) + 1))
+        last_error = None
+
+        # TikFly supporte '/api/hashtag/posts' avec param 'name'
+        # Fallback: '/api/challenge/posts' avec param 'challengeName'
+        endpoint_variants = [
+            ('/api/hashtag/posts',   {'name': hashtag}),
+            ('/api/challenge/posts', {'challengeName': hashtag}),
+        ]
+        endpoint, base_params = endpoint_variants[0]
 
         while len(videos) < max_videos and pages < max_pages:
-            params: dict = {'name': hashtag, 'count': 30}
+            params: dict = dict(base_params)
+            params['count'] = 30
             if cursor:
                 params['cursor'] = cursor
+
             try:
-                data = self._get('/api/hashtag/posts', params)
+                data = self._get(endpoint, params)
             except Exception as e:
-                logger.warning(f'[tikfly] hashtag p{pages}: {e}')
-                break
+                last_error = e
+                # Essayer le second endpoint au premier échec
+                if pages == 0 and endpoint == endpoint_variants[0][0]:
+                    logger.warning(f'[tikfly] {endpoint} failed ({e}), trying fallback')
+                    endpoint, base_params = endpoint_variants[1]
+                    params = dict(base_params)
+                    params['count'] = 30
+                    try:
+                        data = self._get(endpoint, params)
+                        last_error = None
+                    except Exception as e2:
+                        last_error = e2
+                        break
+                else:
+                    logger.warning(f'[tikfly] hashtag p{pages}: {e}')
+                    break
 
             raw_items = (
                 (data.get('data') or {}).get('itemList')
@@ -331,6 +356,9 @@ class TikFlyCollector:
             pages += 1
             if not has_more or not cursor:
                 break
+
+        if not videos and last_error:
+            raise RuntimeError(f'Hashtag API error: {last_error}')
 
         return videos[:max_videos]
 
