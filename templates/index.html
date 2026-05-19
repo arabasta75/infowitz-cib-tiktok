@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tekkai — TikTok Inauthenticity Engine</title>
+<style>
+  :root{
+    --bg:#0d0d0f;--bg2:#141418;--bg3:#1c1c22;--bg4:#242430;
+    --border:#2a2a38;--border2:#3a3a50;
+    --text:#e8e8f0;--text2:#9090a8;--text3:#5a5a72;
+    --accent:#fe2c55;--accent2:#ff4d6d;--accent3:#ff8fa3;
+    --green:#00c896;--yellow:#ffd60a;--purple:#8b5cf6;
+    --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono','Fira Code',monospace;
+    --radius:6px;--shadow:0 4px 24px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;min-height:100vh;overflow-x:hidden}
+  a{color:var(--accent);text-decoration:none}
+  input,select,textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 12px;outline:none;transition:border .15s}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  button{cursor:pointer;font-family:var(--font);font-size:13px;border:none;border-radius:var(--radius);transition:all .15s}
+  .btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);padding:7px 14px}
+  .btn:hover{background:var(--bg4);border-color:var(--border2)}
+  .btn-primary{background:var(--accent);color:#fff;border:none;padding:8px 20px;font-weight:600}
+  .btn-primary:hover{background:var(--accent2)}
+  .btn-sm{padding:4px 10px;font-size:11px}
+
+  /* ── Login ── */
+  #login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999}
+  .login-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:40px;width:360px}
+  .login-logo{font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:8px}
+  .login-logo span{color:var(--accent)}
+  .login-sub{color:var(--text2);font-size:12px;margin-bottom:28px}
+  .login-box label{display:block;color:var(--text2);font-size:11px;letter-spacing:.5px;margin-bottom:4px;text-transform:uppercase}
+  .login-box input{width:100%;margin-bottom:14px}
+  .login-box .btn-primary{width:100%;padding:10px}
+  #login-error{color:var(--accent);font-size:12px;margin-top:10px;display:none}
+
+  /* ── App shell ── */
+  #app{display:none;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+  .logo{font-size:18px;font-weight:800;letter-spacing:-0.5px}.logo span{color:var(--accent)}
+  .logo-sub{font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-left:2px}
+  nav{display:flex;gap:2px;margin-left:auto}
+  nav button{background:none;color:var(--text2);border:none;padding:6px 14px;border-radius:var(--radius);font-size:12px;letter-spacing:.3px}
+  nav button.active,nav button:hover{background:var(--bg3);color:var(--text)}
+  .header-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .stat-chip{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:11px;font-family:var(--mono);color:var(--text2)}
+  .stat-chip span{color:var(--text)}
+
+  main{flex:1;overflow:hidden;display:flex}
+
+  /* ── Sidebar ── */
+  aside{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+  .sidebar-section{padding:16px;border-bottom:1px solid var(--border)}
+  .sidebar-section h4{font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+  .sidebar-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px}
+  .sidebar-row .label{color:var(--text2)}
+  .sidebar-row .val{font-family:var(--mono);font-weight:700}
+  .val-green{color:var(--green)}
+  .val-red{color:var(--accent)}
+  .val-yellow{color:var(--yellow)}
+  .val-purple{color:var(--purple)}
+
+  /* ── Content area ── */
+  .content{flex:1;overflow-y:auto;padding:20px}
+  .tab-pane{display:none}.tab-pane.active{display:block}
+
+  /* ── Search bar ── */
+  .search-bar{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px}
+  .search-bar h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)}
+  .search-input-row{display:flex;gap:10px;align-items:flex-start}
+  .search-input-row textarea{flex:1;height:72px;resize:vertical;font-family:var(--mono);font-size:12px}
+  .search-actions{display:flex;flex-direction:column;gap:6px}
+
+  /* ── Accounts table ── */
+  .table-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .table-header h3{font-size:13px;font-weight:600}
+  .filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .filter-row select,.filter-row input{font-size:11px;padding:5px 8px}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:10px;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tr:hover td{background:var(--bg2)}
+  .avatar-cell{display:flex;align-items:center;gap:10px}
+  .avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--bg3);flex-shrink:0}
+  .avatar-fallback{width:34px;height:34px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px;flex-shrink:0}
+  .handle-cell .name{font-weight:600;font-size:13px}
+  .handle-cell .uid{color:var(--text2);font-size:11px;font-family:var(--mono)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+  .badge-human{background:rgba(0,200,150,.15);color:var(--green)}
+  .badge-bot{background:rgba(254,44,85,.15);color:var(--accent)}
+  .badge-unclear{background:rgba(255,214,10,.12);color:var(--yellow)}
+  .score-bar-wrap{width:80px}
+  .score-bar{height:6px;border-radius:3px;background:var(--bg4);overflow:hidden}
+  .score-fill{height:100%;border-radius:3px;transition:width .3s}
+  .score-val{font-family:var(--mono);font-size:12px;font-weight:700;margin-top:2px}
+  .num{font-family:var(--mono);font-size:12px;color:var(--text2)}
+  .flag-count{font-family:var(--mono);font-size:11px;color:var(--yellow)}
+  .action-btns{display:flex;gap:4px}
+  .verified-icon{color:var(--accent);font-size:13px;margin-left:4px}
+
+  /* ── Progress / job ── */
+  .job-bar{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin-bottom:16px;display:none}
+  .job-bar.running{display:block}
+  .job-progress{height:4px;background:var(--bg4);border-radius:2px;margin-top:8px;overflow:hidden}
+  .job-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .5s}
+  .job-msg{color:var(--text2);font-size:12px}
+
+  /* ── Account Detail Modal ── */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;overflow-y:auto;padding:24px 16px}
+  .modal-overlay.open{display:block}
+  .modal-box{max-width:760px;margin:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:28px;position:relative}
+  .modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer}
+  .modal-close:hover{color:var(--text)}
+  .account-header{display:flex;gap:16px;align-items:flex-start;margin-bottom:20px}
+  .account-avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--border)}
+  .account-avatar-fallback{width:64px;height:64px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:28px;border:2px solid var(--border)}
+  .account-info h2{font-size:18px;font-weight:700}
+  .account-info .uid{color:var(--text2);font-family:var(--mono);font-size:13px}
+  .account-info .bio{color:var(--text2);font-size:12px;margin-top:4px;max-width:500px}
+  .account-score-big{font-size:48px;font-weight:800;line-height:1;font-family:var(--mono)}
+  .account-score-label{font-size:11px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+  .stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center}
+  .stat-card .num{font-size:18px;font-weight:700;font-family:var(--mono)}
+  .stat-card .lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+  .layers-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
+  .layer-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px}
+  .layer-card .layer-name{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .layer-card .layer-score{font-family:var(--mono);font-size:20px;font-weight:700}
+  .layer-card .layer-max{font-size:10px;color:var(--text3)}
+  .layer-bar{height:4px;background:var(--bg4);border-radius:2px;margin-top:6px;overflow:hidden}
+  .layer-fill{height:100%;border-radius:2px}
+  .flags-list{list-style:none;padding:0}
+  .flags-list li{padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)}
+  .flags-list li:last-child{border-bottom:none}
+  .llm-box{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:14px;white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--text);max-height:400px;overflow-y:auto;margin-top:10px}
+  .section-title{font-size:11px;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;margin-top:16px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+  /* ── Config ── */
+  .config-form{max-width:600px}
+  .config-form label{display:block;color:var(--text2);font-size:11px;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 4px}
+  .config-form input{width:100%}
+  .config-note{color:var(--text3);font-size:11px;margin-top:4px}
+
+  /* ── Empty state ── */
+  .empty{text-align:center;padding:60px 20px;color:var(--text3)}
+  .empty h3{font-size:18px;color:var(--text2);margin-bottom:8px}
+
+  /* ── Toast ── */
+  #toast{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 18px;font-size:12px;color:var(--text);z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none}
+  #toast.show{opacity:1}
+
+  /* ── Score correction modal ── */
+  #score-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9500;display:none;align-items:center;justify-content:center}
+  #score-modal.open{display:flex}
+  .score-modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:24px;width:380px}
+  .score-modal-box h3{font-size:14px;font-weight:700;margin-bottom:16px}
+  .score-modal-box label{display:block;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px}
+  .score-modal-box input,.score-modal-box select,.score-modal-box textarea{width:100%}
+  .score-modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Tek<span>kai</span></div>
+    <div class="login-sub">TikTok Inauthenticity Engine · La Warroom</div>
+    <form onsubmit="doLogin(event)">
+      <label>Identifiant</label>
+      <input id="l-user" type="text" placeholder="admin" autocomplete="username">
+      <label>Mot de passe</label>
+      <input id="l-pass" type="password" autocomplete="current-password">
+      <button class="btn-primary" type="submit">Connexion</button>
+      <div id="login-error"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════════════════════════ -->
+<div id="app">
+  <header>
+    <div class="logo">Tek<span>kai</span> <span class="logo-sub">TikTok Engine</span></div>
+    <nav>
+      <button class="active" onclick="showTab('analyse')">Analyse</button>
+      <button onclick="showTab('results')">Résultats</button>
+      <button onclick="showTab('config')">Config</button>
+    </nav>
+    <div class="header-right">
+      <div class="stat-chip">Total <span id="h-total">—</span></div>
+      <div class="stat-chip" style="color:var(--accent)">Bots <span id="h-bots" style="color:var(--accent)">—</span></div>
+      <div class="stat-chip" style="color:var(--green)">Legit <span id="h-legit" style="color:var(--green)">—</span></div>
+      <button class="btn btn-sm" onclick="doLogout()">⎋ Logout</button>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <div class="sidebar-section">
+        <h4>Vue d'ensemble</h4>
+        <div class="sidebar-row"><span class="label">Total analysés</span><span class="val" id="s-total">—</span></div>
+        <div class="sidebar-row"><span class="label">🔴 Bots</span><span class="val val-red" id="s-bots">—</span></div>
+        <div class="sidebar-row"><span class="label">🟡 Incertains</span><span class="val val-yellow" id="s-unclear">—</span></div>
+        <div class="sidebar-row"><span class="label">🟢 Authentiques</span><span class="val val-green" id="s-legit">—</span></div>
+        <div class="sidebar-row"><span class="label">🚩 Signalés</span><span class="val val-purple" id="s-flagged">—</span></div>
+      </div>
+      <div class="sidebar-section">
+        <h4>Filtres rapides</h4>
+        <button class="btn" style="width:100%;margin-bottom:6px;font-size:11px;text-align:left" onclick="filterVerdict('')">Tous les comptes</button>
+        <button class="btn" style="width:100%;margin-bottom:6px;font-size:11px;text-align:left;color:var(--accent)" onclick="filterVerdict('bot')">🔴 Bots uniquement</button>
+        <button class="btn" style="width:100%;margin-bottom:6px;font-size:11px;text-align:left;color:var(--yellow)" onclick="filterVerdict('unclear')">🟡 Incertains</button>
+        <button class="btn" style="width:100%;font-size:11px;text-align:left;color:var(--green)" onclick="filterVerdict('human')">🟢 Authentiques</button>
+      </div>
+      <div class="sidebar-section" style="border-bottom:none">
+        <h4>Export</h4>
+        <button class="btn" style="width:100%;font-size:11px" onclick="exportCSV()">⬇ Export CSV</button>
+      </div>
+    </aside>
+
+    <div class="content">
+      <!-- ── ANALYSE ──────────────────────────────────────────────────────── -->
+      <div class="tab-pane active" id="tab-analyse">
+        <div class="search-bar">
+          <h3>Analyser des comptes TikTok</h3>
+          <div class="search-input-row">
+            <textarea id="handles-input" placeholder="@compte1&#10;@compte2&#10;compte3&#10;&#10;Un @handle par ligne (max 50)"></textarea>
+            <div class="search-actions">
+              <button class="btn-primary" onclick="startAnalysis()">▶ Analyser</button>
+              <button class="btn" onclick="document.getElementById('handles-input').value=''">✕ Vider</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;color:var(--text3);font-size:11px">
+            Entrez les @handles TikTok à analyser (un par ligne). L'analyse récupère le profil + les 30 dernières vidéos via TikFly.
+          </div>
+        </div>
+
+        <!-- Job progress -->
+        <div class="job-bar" id="job-bar">
+          <div class="job-msg" id="job-msg">Analyse en cours…</div>
+          <div class="job-progress">
+            <div class="job-progress-fill" id="job-fill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Results preview after job -->
+        <div id="job-results"></div>
+      </div>
+
+      <!-- ── RESULTS ──────────────────────────────────────────────────────── -->
+      <div class="tab-pane" id="tab-results">
+        <div class="table-header">
+          <h3>Comptes analysés</h3>
+          <button class="btn btn-sm" onclick="loadAccounts()">↻ Actualiser</button>
+        </div>
+        <div class="filter-row">
+          <input id="search-filter" placeholder="🔍 Filtrer par @handle…" oninput="filterTable(this.value)" style="width:200px">
+          <select id="verdict-filter" onchange="loadAccounts()">
+            <option value="">Tous les verdicts</option>
+            <option value="bot">🔴 Bot</option>
+            <option value="unclear">🟡 Incertain</option>
+            <option value="human">🟢 Authentique</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;color:var(--text2);font-size:12px">
+            <input type="checkbox" id="flagged-only" onchange="loadAccounts()"> Signalés seulement
+          </label>
+        </div>
+        <div id="accounts-wrap">
+          <div class="empty"><h3>Aucun compte analysé</h3><p>Lancez une analyse depuis l'onglet "Analyse"</p></div>
+        </div>
+      </div>
+
+      <!-- ── CONFIG ──────────────────────────────────────────────────────── -->
+      <div class="tab-pane" id="tab-config">
+        <div class="config-form">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">Configuration</h3>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:20px">Clés API stockées localement par utilisateur.</p>
+
+          <label>TikFly API Key (RapidAPI — tiktok-api23.p.rapidapi.com)</label>
+          <input id="cfg-tikfly" type="password" placeholder="Entrez votre clé RapidAPI / TikFly">
+          <div class="config-note">Obligatoire pour analyser des comptes TikTok.</div>
+
+          <label style="margin-top:20px">LLM — Groq API Key (analyse approfondie)</label>
+          <input id="cfg-groq" type="password" placeholder="gsk_…">
+
+          <label>LLM — OpenAI API Key</label>
+          <input id="cfg-openai" type="password" placeholder="sk-…">
+
+          <label>LLM — Mistral API Key</label>
+          <input id="cfg-mistral" type="password" placeholder="…">
+
+          <label>LLM — Gemini API Key</label>
+          <input id="cfg-gemini" type="password" placeholder="…">
+
+          <label>Max vidéos par compte</label>
+          <input id="cfg-maxvid" type="number" value="30" min="5" max="100" style="width:120px">
+          <div class="config-note">Nombre de vidéos récentes récupérées pour le scoring (5–100).</div>
+
+          <div style="margin-top:20px">
+            <button class="btn-primary" onclick="saveConfig()">💾 Sauvegarder</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ══ Account Detail Modal ═══════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeDetail()">✕</button>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- ══ Score Correction Modal ════════════════════════════════════════════════ -->
+<div id="score-modal">
+  <div class="score-modal-box">
+    <h3>Corriger le score — <span id="smod-uid">@compte</span></h3>
+    <label>Score d'authenticité (0 = bot · 100 = humain)</label>
+    <input type="range" id="smod-slider" min="0" max="100" step="1" value="50"
+           oninput="document.getElementById('smod-val').textContent=this.value"
+           style="width:100%;cursor:pointer;margin-bottom:4px">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:10px">
+      <span style="color:var(--accent)">Bot</span>
+      <span id="smod-val" style="font-size:18px;font-weight:800;color:var(--text)">50</span>
+      <span style="color:var(--green)">Humain</span>
+    </div>
+    <label>Verdict</label>
+    <select id="smod-verdict">
+      <option value="bot">🔴 Bot</option>
+      <option value="unclear">🟡 Incertain</option>
+      <option value="human" selected>🟢 Authentique</option>
+    </select>
+    <label>Note (optionnel)</label>
+    <textarea id="smod-notes" rows="2" placeholder="Contexte, source…" style="resize:none"></textarea>
+    <div class="score-modal-footer">
+      <button class="btn" onclick="closeScoreModal()">Annuler</button>
+      <button class="btn-primary" onclick="saveScore()">Sauvegarder</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let _accounts = [];
+let _currentJobId = null;
+let _jobPoll = null;
+let _detailUid = null;
+let _scoreUid = null;
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+async function doLogin(e) {
+  e.preventDefault();
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({
+        username: document.getElementById('l-user').value.trim(),
+        password: document.getElementById('l-pass').value,
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Erreur'; err.style.display = 'block'; return; }
+    showApp();
+  } catch(ex) { err.textContent = ex.message; err.style.display = 'block'; }
+}
+
+async function doLogout() {
+  await fetch('/api/logout', {method:'POST', credentials:'include'});
+  location.reload();
+}
+
+// ── App init ─────────────────────────────────────────────────────────────────
+async function checkAuth() {
+  const r = await fetch('/api/me', {credentials:'include'});
+  const d = await r.json();
+  if (d.logged_in) showApp();
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  loadStats();
+  loadAccounts();
+  loadConfig();
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('nav button').forEach((btn, i) => {
+    const tabs = ['analyse','results','config'];
+    btn.classList.toggle('active', tabs[i] === name);
+  });
+  if (name === 'results') loadAccounts();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const r = await fetch('/api/stats', {credentials:'include'});
+  const d = await r.json();
+  if (!d.ok) return;
+  const s = d.stats;
+  document.getElementById('h-total').textContent = s.total;
+  document.getElementById('h-bots').textContent  = s.bots;
+  document.getElementById('h-legit').textContent = s.legit;
+  document.getElementById('s-total').textContent = s.total;
+  document.getElementById('s-bots').textContent  = s.bots;
+  document.getElementById('s-unclear').textContent = s.unclear;
+  document.getElementById('s-legit').textContent = s.legit;
+  document.getElementById('s-flagged').textContent = s.flagged;
+}
+
+// ── Analysis ─────────────────────────────────────────────────────────────────
+function startAnalysis() {
+  const raw = document.getElementById('handles-input').value.trim();
+  if (!raw) { toast('Entrez au moins un @handle', 'error'); return; }
+  const handles = raw.split(/[\n,;]+/).map(h=>h.trim().replace(/^@/,'')).filter(Boolean);
+  if (!handles.length) { toast('Aucun handle valide', 'error'); return; }
+  if (handles.length > 50) { toast('Max 50 comptes par batch', 'error'); return; }
+
+  fetch('/api/analyze', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    credentials:'include',
+    body: JSON.stringify({handles})
+  }).then(r=>r.json()).then(d=>{
+    if (d.error) { toast(d.error,'error'); return; }
+    _currentJobId = d.job_id;
+    document.getElementById('job-bar').classList.add('running');
+    document.getElementById('job-results').innerHTML = '';
+    _jobPoll = setInterval(pollJob, 1000);
+  }).catch(e=>toast(e.message,'error'));
+}
+
+async function pollJob() {
+  if (!_currentJobId) return;
+  try {
+    const r = await fetch(`/api/job/${_currentJobId}`, {credentials:'include'});
+    const d = await r.json();
+    document.getElementById('job-msg').textContent = d.msg || '…';
+    document.getElementById('job-fill').style.width = (d.progress||0)+'%';
+
+    if (d.status === 'done') {
+      clearInterval(_jobPoll);
+      document.getElementById('job-bar').classList.remove('running');
+      renderJobResults(d.results || []);
+      loadStats();
+      loadAccounts();
+      toast(`✅ ${d.results?.length || 0} compte(s) analysé(s)`);
+    } else if (d.status === 'error') {
+      clearInterval(_jobPoll);
+      document.getElementById('job-bar').classList.remove('running');
+      toast('Erreur: '+d.error, 'error');
+    }
+  } catch(e) { clearInterval(_jobPoll); }
+}
+
+function renderJobResults(results) {
+  const wrap = document.getElementById('job-results');
+  if (!results.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">
+        Résultats du batch (${results.length})
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Compte</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Score</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Verdict</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Followers</th>
+        </tr></thead>
+        <tbody>${results.map(r=> r.error
+          ? `<tr><td style="padding:8px 12px;font-family:var(--mono);font-size:12px">@${r.handle}</td><td colspan="3" style="padding:8px 12px;color:var(--accent);font-size:11px">${r.error}</td></tr>`
+          : `<tr style="cursor:pointer" onclick="openDetail('@${r.handle}')">
+              <td style="padding:8px 12px;font-family:var(--mono);font-size:12px">@${r.handle}</td>
+              <td style="padding:8px 12px;font-family:var(--mono);font-weight:700;font-size:14px;color:${scoreColor(r.bot_score)}">${r.bot_score}</td>
+              <td style="padding:8px 12px">${verdictBadge(r.verdict)}</td>
+              <td style="padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(r.followers)}</td>
+            </tr>`
+        ).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── Accounts list ─────────────────────────────────────────────────────────────
+async function loadAccounts() {
+  const verdict  = document.getElementById('verdict-filter')?.value || '';
+  const flagged  = document.getElementById('flagged-only')?.checked ? '1' : '0';
+  const params   = new URLSearchParams({limit:500, offset:0});
+  if (verdict) params.set('verdict', verdict);
+  if (flagged === '1') params.set('flagged', '1');
+  const r = await fetch('/api/accounts?'+params, {credentials:'include'});
+  const d = await r.json();
+  if (!d.ok) return;
+  _accounts = d.accounts;
+  renderAccounts(_accounts);
+}
+
+function filterTable(q) {
+  const filtered = q
+    ? _accounts.filter(a =>
+        (a.unique_id||'').toLowerCase().includes(q.toLowerCase()) ||
+        (a.display_name||'').toLowerCase().includes(q.toLowerCase()))
+    : _accounts;
+  renderAccounts(filtered);
+}
+
+function filterVerdict(v) {
+  document.getElementById('verdict-filter').value = v;
+  loadAccounts();
+}
+
+function renderAccounts(accounts) {
+  const wrap = document.getElementById('accounts-wrap');
+  if (!accounts.length) {
+    wrap.innerHTML = '<div class="empty"><h3>Aucun compte</h3><p>Lancez une analyse depuis l\'onglet "Analyse"</p></div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Compte</th>
+        <th>Score</th>
+        <th>Verdict</th>
+        <th>Abonnés</th>
+        <th>Following</th>
+        <th>Vidéos</th>
+        <th>Flags</th>
+        <th>Actions</th>
+      </tr></thead>
+      <tbody>${accounts.map(a => {
+        const patterns = typeof a.patterns === 'string' ? JSON.parse(a.patterns||'[]') : (a.patterns||[]);
+        const flagColor = scoreColor(a.bot_score);
+        return `<tr>
+          <td>
+            <div class="avatar-cell">
+              ${a.avatar ? `<img class="avatar" src="${a.avatar}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+                <div class="avatar-fallback" style="display:none">👤</div>` :
+                `<div class="avatar-fallback">👤</div>`}
+              <div class="handle-cell">
+                <div class="name">${escHtml(a.display_name||a.unique_id)}${a.verified?'<span class="verified-icon">✓</span>':''}</div>
+                <div class="uid">@${escHtml(a.unique_id)}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="score-bar-wrap">
+              <div class="score-bar"><div class="score-fill" style="width:${a.bot_score}%;background:${flagColor}"></div></div>
+              <div class="score-val" style="color:${flagColor}">${a.bot_score}</div>
+            </div>
+          </td>
+          <td>${verdictBadge(a.verdict)}</td>
+          <td><span class="num">${fmtNum(a.followers)}</span></td>
+          <td><span class="num">${fmtNum(a.following)}</span></td>
+          <td><span class="num">${fmtNum(a.video_count)}</span></td>
+          <td><span class="flag-count">${patterns.length ? '⚑ '+patterns.length : '—'}</span></td>
+          <td>
+            <div class="action-btns">
+              <button class="btn btn-sm" onclick="openDetail('@${escHtml(a.unique_id)}')">🔍</button>
+              <button class="btn btn-sm" title="Corriger score" onclick="openScoreModal('${escHtml(a.unique_id)}',${a.bot_score},'${a.verdict}')">✏</button>
+              <button class="btn btn-sm" title="${a.flagged?'Désignaler':'Signaler'}" onclick="toggleFlag('${escHtml(a.unique_id)}',${a.flagged?0:1})" style="${a.flagged?'color:var(--accent)':''}">🚩</button>
+              <button class="btn btn-sm" title="Supprimer" onclick="deleteAccount('${escHtml(a.unique_id)}')" style="color:var(--text3)">✕</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+// ── Account detail ────────────────────────────────────────────────────────────
+async function openDetail(handle) {
+  const uid = handle.replace(/^@/,'');
+  _detailUid = uid;
+  const acc = _accounts.find(a => a.unique_id === uid);
+  if (!acc) { toast('Compte non trouvé', 'error'); return; }
+
+  const ctx = typeof acc.context === 'string' ? JSON.parse(acc.context||'{}') : (acc.context||{});
+  const patterns = typeof acc.patterns === 'string' ? JSON.parse(acc.patterns||'[]') : (acc.patterns||[]);
+  const user = ctx.user || {};
+  const layers = ctx.layers || {};
+  const flagColor = scoreColor(acc.bot_score);
+
+  const layerItems = [
+    {k:'surface',  name:'Surface',  max:25},
+    {k:'stats',    name:'Stats',    max:35},
+    {k:'content',  name:'Contenu',  max:25},
+    {k:'network',  name:'Réseau',   max:15},
+  ].map(l => {
+    const layer = layers[l.k] || {};
+    const s = layer.score ?? 0;
+    const pct = (s / l.max * 100).toFixed(0);
+    const col = s >= l.max*0.7 ? 'var(--green)' : s >= l.max*0.4 ? 'var(--yellow)' : 'var(--accent)';
+    return `<div class="layer-card">
+      <div class="layer-name">${l.name}</div>
+      <div class="layer-score" style="color:${col}">${s.toFixed(0)}</div>
+      <div class="layer-max">/${l.max}</div>
+      <div class="layer-bar"><div class="layer-fill" style="width:${pct}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+
+  const content = document.getElementById('detail-content');
+  content.innerHTML = `
+    <div class="account-header">
+      ${acc.avatar
+        ? `<img class="account-avatar" src="${escHtml(acc.avatar)}">`
+        : `<div class="account-avatar-fallback">👤</div>`}
+      <div class="account-info" style="flex:1">
+        <h2>${escHtml(acc.display_name||uid)}${acc.verified?'<span class="verified-icon" style="font-size:18px">✓</span>':''}</h2>
+        <div class="uid">@${escHtml(uid)}</div>
+        ${user.signature ? `<div class="bio">${escHtml(user.signature)}</div>` : ''}
+      </div>
+      <div style="text-align:center">
+        <div class="account-score-big" style="color:${flagColor}">${acc.bot_score}</div>
+        <div class="account-score-label">/100 · ${acc.verdict?.toUpperCase()}</div>
+        <div style="margin-top:6px">${verdictBadge(acc.verdict)}</div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="num">${fmtNum(acc.followers)}</div><div class="lbl">Abonnés</div></div>
+      <div class="stat-card"><div class="num">${fmtNum(acc.following)}</div><div class="lbl">Following</div></div>
+      <div class="stat-card"><div class="num">${fmtNum(acc.hearts)}</div><div class="lbl">Total Likes</div></div>
+      <div class="stat-card"><div class="num">${fmtNum(acc.video_count)}</div><div class="lbl">Vidéos</div></div>
+    </div>
+
+    <div class="section-title">Couches de scoring</div>
+    <div class="layers-grid">${layerItems}</div>
+
+    ${patterns.length ? `
+      <div class="section-title">Flags détectés (${patterns.length})</div>
+      <ul class="flags-list">${patterns.map(f=>`<li>${escHtml(f)}</li>`).join('')}</ul>
+    ` : '<div style="color:var(--green);font-size:12px;margin:10px 0">✅ Aucun signal suspect détecté</div>'}
+
+    <div class="section-title">Analyse LLM approfondie</div>
+    <button class="btn" style="font-size:12px" onclick="runLLM('${uid}')">🧠 Lancer l'analyse LLM</button>
+    <div id="llm-result-${uid}"></div>
+
+    <div style="display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-sm" onclick="openScoreModal('${uid}',${acc.bot_score},'${acc.verdict}')">✏ Corriger score</button>
+      <button class="btn btn-sm" onclick="toggleFlag('${uid}',${acc.flagged?0:1})" style="${acc.flagged?'color:var(--accent)':''}">🚩 ${acc.flagged?'Désignaler':'Signaler'}</button>
+      <a href="https://www.tiktok.com/@${uid}" target="_blank" class="btn btn-sm">↗ Voir sur TikTok</a>
+    </div>`;
+
+  document.getElementById('detail-modal').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-modal').classList.remove('open');
+  _detailUid = null;
+}
+
+async function runLLM(uid) {
+  const box = document.getElementById(`llm-result-${uid}`);
+  if (!box) return;
+  box.innerHTML = '<div style="color:var(--text2);font-size:12px;margin-top:8px">Analyse LLM en cours…</div>';
+  try {
+    const r = await fetch('/api/llm-analyze', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      credentials:'include', body: JSON.stringify({unique_id: uid})
+    });
+    const d = await r.json();
+    if (d.error) { box.innerHTML = `<div style="color:var(--accent);font-size:12px;margin-top:8px">Erreur : ${escHtml(d.error)}</div>`; return; }
+    box.innerHTML = `<div class="llm-box">${escHtml(d.analysis)}</div>
+      <div style="color:var(--text3);font-size:10px;margin-top:4px">Modèle : ${d.model_used} · ${d.tokens} tokens</div>`;
+  } catch(e) { box.innerHTML = `<div style="color:var(--accent);font-size:12px;margin-top:8px">Erreur : ${escHtml(e.message)}</div>`; }
+}
+
+// ── Score modal ───────────────────────────────────────────────────────────────
+function openScoreModal(uid, score, verdict) {
+  _scoreUid = uid;
+  document.getElementById('smod-uid').textContent = '@'+uid;
+  document.getElementById('smod-slider').value = score;
+  document.getElementById('smod-val').textContent = score;
+  document.getElementById('smod-verdict').value = verdict || 'unclear';
+  document.getElementById('smod-notes').value = '';
+  document.getElementById('score-modal').classList.add('open');
+}
+function closeScoreModal() {
+  document.getElementById('score-modal').classList.remove('open');
+  _scoreUid = null;
+}
+async function saveScore() {
+  if (!_scoreUid) return;
+  const score   = +document.getElementById('smod-slider').value;
+  const verdict = document.getElementById('smod-verdict').value;
+  const notes   = document.getElementById('smod-notes').value;
+  const r = await fetch(`/api/account/${_scoreUid}/score`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    credentials:'include',
+    body: JSON.stringify({score, verdict, notes})
+  });
+  const d = await r.json();
+  closeScoreModal();
+  if (d.ok) { toast('Score corrigé'); loadAccounts(); loadStats(); }
+  else toast('Erreur', 'error');
+}
+
+// ── Flag / Delete ─────────────────────────────────────────────────────────────
+async function toggleFlag(uid, flagged) {
+  await fetch(`/api/account/${uid}/flag`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    credentials:'include', body: JSON.stringify({flagged: !!flagged})
+  });
+  loadAccounts(); loadStats();
+  toast(flagged ? '🚩 Compte signalé' : 'Signalement retiré');
+}
+async function deleteAccount(uid) {
+  if (!confirm(`Supprimer @${uid} de la base ?`)) return;
+  await fetch(`/api/account/${uid}`, {method:'DELETE', credentials:'include'});
+  loadAccounts(); loadStats();
+  toast('Compte supprimé');
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  const r = await fetch('/api/config', {credentials:'include'});
+  const d = await r.json();
+  if (!d.ok) return;
+  const cfg = d.config;
+  if (cfg.tikfly_key) document.getElementById('cfg-tikfly').placeholder = cfg.tikfly_key;
+  if (cfg.groq_key)   document.getElementById('cfg-groq').placeholder   = cfg.groq_key;
+  if (cfg.openai_key) document.getElementById('cfg-openai').placeholder = cfg.openai_key;
+  if (cfg.mistral_key) document.getElementById('cfg-mistral').placeholder = cfg.mistral_key;
+  if (cfg.gemini_key) document.getElementById('cfg-gemini').placeholder = cfg.gemini_key;
+  if (cfg.max_videos) document.getElementById('cfg-maxvid').value = cfg.max_videos;
+}
+async function saveConfig() {
+  const body = {};
+  const fields = [
+    ['tikfly_key','cfg-tikfly'],
+    ['groq_key','cfg-groq'],
+    ['openai_key','cfg-openai'],
+    ['mistral_key','cfg-mistral'],
+    ['gemini_key','cfg-gemini'],
+    ['max_videos','cfg-maxvid'],
+  ];
+  for (const [k, id] of fields) {
+    const v = document.getElementById(id)?.value?.trim();
+    if (v) body[k] = v;
+  }
+  const r = await fetch('/api/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    credentials:'include', body: JSON.stringify(body)
+  });
+  const d = await r.json();
+  if (d.ok) toast('Configuration sauvegardée');
+  else toast('Erreur', 'error');
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!_accounts.length) { toast('Aucune donnée', 'error'); return; }
+  const rows = [['unique_id','display_name','bot_score','verdict','followers','following','hearts','video_count','verified','region','flagged']];
+  for (const a of _accounts) {
+    rows.push([a.unique_id,a.display_name,a.bot_score,a.verdict,a.followers,a.following,a.hearts,a.video_count,a.verified?1:0,a.region||'',a.flagged?1:0]);
+  }
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `tekkai_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function scoreColor(s) {
+  if (s >= 70) return 'var(--green)';
+  if (s >= 40) return 'var(--yellow)';
+  return 'var(--accent)';
+}
+function verdictBadge(v) {
+  if (v === 'human')  return '<span class="badge badge-human">Authentique</span>';
+  if (v === 'bot')    return '<span class="badge badge-bot">Bot</span>';
+  return '<span class="badge badge-unclear">Incertain</span>';
+}
+function fmtNum(n) {
+  if (!n) return '0';
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1)+'M';
+  if (n >= 1_000)     return (n/1_000).toFixed(1)+'K';
+  return String(n);
+}
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = type === 'error' ? 'var(--accent)' : 'var(--border)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// Close modals on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDetail(); closeScoreModal(); }
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+checkAuth();
+</script>
+</body>
+</html>

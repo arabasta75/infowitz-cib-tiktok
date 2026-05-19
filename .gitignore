@@ -1,0 +1,12 @@
+.env
+data/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+*.json.gz
+.secret_key
