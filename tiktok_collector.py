@@ -295,6 +295,106 @@ class TikFlyCollector:
         return {'user': user, 'videos': videos}
 
 
+    def search_hashtag(self, hashtag: str, max_videos: int = 50) -> list[dict]:
+        """Vidéos d'un hashtag — retourne les vidéos normalisées avec auteur inclus."""
+        hashtag = hashtag.lstrip('#').strip()
+        videos: list[dict] = []
+        cursor = None
+        pages = 0
+        max_pages = min(5, max(1, (max_videos // 20) + 1))
+
+        while len(videos) < max_videos and pages < max_pages:
+            params: dict = {'name': hashtag, 'count': 30}
+            if cursor:
+                params['cursor'] = cursor
+            try:
+                data = self._get('/api/hashtag/posts', params)
+            except Exception as e:
+                logger.warning(f'[tikfly] hashtag p{pages}: {e}')
+                break
+
+            raw_items = (
+                (data.get('data') or {}).get('itemList')
+                or data.get('itemList')
+                or data.get('items') or []
+            )
+            for item in raw_items:
+                v = normalize_tiktok_video(item)
+                author_raw   = item.get('author') or {}
+                author_stats = item.get('authorStats') or item.get('stats') or {}
+                if author_raw:
+                    v['_author'] = normalize_tiktok_user(author_raw, author_stats)
+                videos.append(v)
+
+            has_more = (data.get('data') or {}).get('hasMore') or data.get('hasMore') or False
+            cursor   = (data.get('data') or {}).get('cursor') or data.get('cursor')
+            pages += 1
+            if not has_more or not cursor:
+                break
+
+        return videos[:max_videos]
+
+    def get_video_comments(self, aweme_id: str, max_comments: int = 50) -> list[dict]:
+        """Commentaires d'une vidéo TikTok."""
+        comments: list[dict] = []
+        cursor = None
+        pages = 0
+
+        while len(comments) < max_comments and pages < 3:
+            params: dict = {'aweme_id': aweme_id, 'count': 30}
+            if cursor:
+                params['cursor'] = cursor
+            try:
+                data = self._get('/api/post/comments', params)
+            except Exception as e:
+                logger.warning(f'[tikfly] comments p{pages}: {e}')
+                break
+
+            raw_items = (
+                (data.get('data') or {}).get('comments')
+                or data.get('comments') or []
+            )
+            for c in raw_items:
+                u = c.get('user') or {}
+                comments.append({
+                    'cid':       c.get('cid') or c.get('id') or '',
+                    'text':      c.get('text') or '',
+                    'like_count': int(c.get('digg_count') or c.get('like_count') or 0),
+                    'create_ts': int(c.get('create_time') or 0),
+                    'user_id':   u.get('uid') or u.get('id') or '',
+                    'unique_id': u.get('unique_id') or u.get('uniqueId') or '',
+                    'nickname':  u.get('nickname') or '',
+                })
+
+            has_more = (data.get('data') or {}).get('has_more') or data.get('has_more') or False
+            cursor   = (data.get('data') or {}).get('cursor') or data.get('cursor')
+            pages += 1
+            if not has_more or not cursor:
+                break
+
+        return comments[:max_comments]
+
+    def search_keyword(self, keyword: str, max_users: int = 30) -> list[dict]:
+        """Recherche de comptes par mot-clé."""
+        try:
+            data = self._get('/api/search/general', {'keyword': keyword, 'type': 1, 'count': max_users})
+            items = (
+                (data.get('data') or {}).get('user_list')
+                or data.get('user_list')
+                or data.get('users') or []
+            )
+            users = []
+            for item in items:
+                u = item.get('user_info') or item.get('user') or item
+                s = item.get('stats') or {}
+                if u:
+                    users.append(normalize_tiktok_user(u, s))
+            return users[:max_users]
+        except Exception as e:
+            logger.warning(f'[tikfly] keyword search {keyword}: {e}')
+            return []
+
+
 # ─── DISPATCHER ───────────────────────────────────────────────────────────────
 
 def get_collector(user_cfg: dict) -> TikFlyCollector | None:

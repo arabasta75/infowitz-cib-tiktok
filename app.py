@@ -18,6 +18,7 @@ import db as _db
 import llm as _llm
 import tiktok_collector as _tk
 import scoring as _scoring
+import cib as _cib
 
 import logging
 import logging.handlers as _log_handlers
@@ -457,6 +458,171 @@ Donne un verdict structuré : verdict, niveau de confiance, analyse des signaux,
                         'tokens': llm_result.get('tokens_used', 0)})
     except Exception as e:
         return jsonify({'error': _safe_err(e)}), 500
+
+# ─── Scraping par hashtag ─────────────────────────────────────────────────────
+
+def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
+    job = _jobs[job_id]
+    try:
+        collector = _tk.get_collector(cfg)
+        if not collector:
+            job.update({'status': 'error', 'error': 'Aucune clé TikFly configurée.'})
+            return
+
+        job['msg'] = f'Scraping #{hashtag}…'
+        videos = collector.search_hashtag(hashtag, max_videos=max_videos)
+
+        # Extraire les auteurs uniques
+        authors: dict[str, dict] = {}
+        for v in videos:
+            author = v.get('_author')
+            if author and author.get('unique_id'):
+                uid = author['unique_id']
+                if uid not in authors:
+                    authors[uid] = author
+
+        job['msg'] = f'{len(authors)} comptes trouvés, analyse en cours…'
+        job['progress'] = 20
+
+        results = []
+        manual_overrides = _db.tk_get_manual_overrides()
+        total = len(authors)
+
+        for i, (uid, user) in enumerate(authors.items()):
+            job['msg'] = f'Analyse @{uid} ({i+1}/{total})…'
+            job['progress'] = 20 + int((i / max(total, 1)) * 75)
+
+            try:
+                data, err = _tk.fetch_account(cfg, uid, max_videos=30, job_state=job)
+                if err or not data:
+                    results.append({'handle': uid, 'error': err or 'Données vides'})
+                    continue
+
+                user_full = data['user']
+                vids = data['videos']
+                result = _scoring.score_account(user_full, vids, manual_overrides=manual_overrides)
+
+                _db.tk_upsert(
+                    unique_id    = user_full['unique_id'],
+                    bot_score    = result['bot_score'],
+                    verdict      = result['verdict'],
+                    display_name = user_full.get('display_name', ''),
+                    avatar       = user_full.get('avatar', ''),
+                    followers    = user_full.get('followers', 0),
+                    following    = user_full.get('following', 0),
+                    hearts       = user_full.get('hearts', 0),
+                    video_count  = user_full.get('video_count', 0),
+                    verified     = user_full.get('verified', False),
+                    region       = user_full.get('region', ''),
+                    patterns     = result['flags'],
+                    posts_analyzed = result['posts_analyzed'],
+                    context      = {
+                        'layers': result.get('layers', {}),
+                        'confidence': result.get('confidence'),
+                        'engagement': result.get('engagement_rate'),
+                        'posting_freq': result.get('posting_freq'),
+                        'user': user_full,
+                        'source_hashtag': hashtag,
+                    },
+                )
+
+                result_file = os.path.join(_DATA_DIR, 'tk_results', f'{user_full["unique_id"]}.json.gz')
+                with gzip.open(result_file, 'wt', encoding='utf-8') as gz:
+                    json.dump({'user': user_full, 'videos': vids, 'result': result,
+                               'ts': _utc_now()}, gz)
+
+                results.append({
+                    'handle': user_full['unique_id'],
+                    'bot_score': result['bot_score'],
+                    'verdict': result['verdict'],
+                    'followers': user_full.get('followers', 0),
+                    'flags_count': len(result['flags']),
+                })
+
+            except Exception as e:
+                logger.warning(f'[tekkai/hashtag] @{uid}: {e}')
+                results.append({'handle': uid, 'error': _safe_err(e)})
+
+        _db.sh_insert(
+            user_id='admin',
+            keyword=f'#{hashtag}',
+            mode='hashtag',
+            account_count=len([r for r in results if not r.get('error')]),
+        )
+
+        job.update({'status': 'done', 'progress': 100, 'results': results,
+                    'msg': f'{len(results)} compte(s) scrapé(s) depuis #{hashtag}'})
+
+    except Exception as e:
+        logger.error(f'[tekkai/hashtag] job {job_id}: {e}')
+        job.update({'status': 'error', 'error': _safe_err(e)})
+
+
+@app.route('/api/scrape/hashtag', methods=['POST'])
+@login_required
+def api_scrape_hashtag():
+    body     = request.get_json(silent=True) or {}
+    hashtag  = (body.get('hashtag') or '').lstrip('#').strip()
+    max_vids = min(int(body.get('max_videos', 50)), 200)
+    if not hashtag:
+        return jsonify({'error': 'hashtag requis'}), 400
+
+    _jobs_gc()
+    job_id = str(uuid.uuid4())
+    with _JOBS_LOCK:
+        _jobs[job_id] = {
+            'id': job_id, 'status': 'running', 'progress': 0,
+            'msg': f'Scraping #{hashtag}…', 'ts': time.time(), 'results': [],
+        }
+    cfg = get_cfg()
+    _executor.submit(_run_hashtag_scrape, job_id, hashtag, max_vids, cfg)
+    return jsonify({'ok': True, 'job_id': job_id})
+
+
+# ─── CIB ──────────────────────────────────────────────────────────────────────
+
+_CIB_RESULT_FILE = os.path.join(_DATA_DIR if os.path.isabs(
+    os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "")
+) else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'), 'cib_last.json')
+
+
+def _cib_result_path() -> str:
+    return os.path.join(_DATA_DIR, 'cib_last.json')
+
+
+@app.route('/api/cib/run', methods=['POST'])
+@login_required
+def api_cib_run():
+    rows = _db.tk_list(limit=500, offset=0)
+    unique_ids = [r['unique_id'] for r in rows if r.get('unique_id')]
+    if len(unique_ids) < 2:
+        return jsonify({'error': 'Au moins 2 comptes analysés nécessaires'}), 400
+
+    result = _cib.run_cib_analysis(_DATA_DIR, unique_ids)
+    result['ts'] = _utc_now()
+
+    try:
+        with open(_cib_result_path(), 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f'[cib] save result: {e}')
+
+    return jsonify({'ok': True, **result})
+
+
+@app.route('/api/cib/result')
+@login_required
+def api_cib_result():
+    path = _cib_result_path()
+    if not os.path.exists(path):
+        return jsonify({'ok': False, 'error': 'Aucune analyse CIB lancée'})
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify({'ok': True, **data})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 
 # ─── History ──────────────────────────────────────────────────────────────────
 

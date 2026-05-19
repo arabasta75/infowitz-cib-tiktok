@@ -10,7 +10,7 @@
     --border:#2a2a38;--border2:#3a3a50;
     --text:#e8e8f0;--text2:#9090a8;--text3:#5a5a72;
     --accent:#fe2c55;--accent2:#ff4d6d;--accent3:#ff8fa3;
-    --green:#00c896;--yellow:#ffd60a;--purple:#8b5cf6;
+    --green:#00c896;--yellow:#ffd60a;--purple:#8b5cf6;--blue:#38bdf8;
     --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono','Fira Code',monospace;
     --radius:6px;--shadow:0 4px 24px rgba(0,0,0,.5);
   }
@@ -24,6 +24,8 @@
   .btn:hover{background:var(--bg4);border-color:var(--border2)}
   .btn-primary{background:var(--accent);color:#fff;border:none;padding:8px 20px;font-weight:600}
   .btn-primary:hover{background:var(--accent2)}
+  .btn-blue{background:#1e40af;color:#bfdbfe;border:none;padding:8px 20px;font-weight:600}
+  .btn-blue:hover{background:#1d4ed8}
   .btn-sm{padding:4px 10px;font-size:11px}
 
   /* ── Login ── */
@@ -45,10 +47,11 @@
   nav{display:flex;gap:2px;margin-left:auto}
   nav button{background:none;color:var(--text2);border:none;padding:6px 14px;border-radius:var(--radius);font-size:12px;letter-spacing:.3px}
   nav button.active,nav button:hover{background:var(--bg3);color:var(--text)}
+  nav button.tab-cib-btn{color:var(--blue)}
+  nav button.tab-cib-btn.active{background:rgba(56,189,248,.1);color:var(--blue)}
   .header-right{display:flex;align-items:center;gap:10px;margin-left:auto}
   .stat-chip{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:11px;font-family:var(--mono);color:var(--text2)}
   .stat-chip span{color:var(--text)}
-
   main{flex:1;overflow:hidden;display:flex}
 
   /* ── Sidebar ── */
@@ -58,14 +61,16 @@
   .sidebar-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px}
   .sidebar-row .label{color:var(--text2)}
   .sidebar-row .val{font-family:var(--mono);font-weight:700}
-  .val-green{color:var(--green)}
-  .val-red{color:var(--accent)}
-  .val-yellow{color:var(--yellow)}
-  .val-purple{color:var(--purple)}
+  .val-green{color:var(--green)}.val-red{color:var(--accent)}.val-yellow{color:var(--yellow)}.val-purple{color:var(--purple)}.val-blue{color:var(--blue)}
 
   /* ── Content area ── */
   .content{flex:1;overflow-y:auto;padding:20px}
   .tab-pane{display:none}.tab-pane.active{display:block}
+
+  /* ── Mode selector ── */
+  .mode-tabs{display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:3px;margin-bottom:16px;width:fit-content}
+  .mode-tab{background:none;border:none;color:var(--text2);padding:5px 14px;border-radius:4px;font-size:12px}
+  .mode-tab.active{background:var(--bg4);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 
   /* ── Search bar ── */
   .search-bar{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px}
@@ -73,6 +78,9 @@
   .search-input-row{display:flex;gap:10px;align-items:flex-start}
   .search-input-row textarea{flex:1;height:72px;resize:vertical;font-family:var(--mono);font-size:12px}
   .search-actions{display:flex;flex-direction:column;gap:6px}
+  .hashtag-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .hashtag-row input[type=text]{flex:1;min-width:180px}
+  .hashtag-row input[type=number]{width:80px}
 
   /* ── Accounts table ── */
   .table-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
@@ -92,6 +100,7 @@
   .badge-human{background:rgba(0,200,150,.15);color:var(--green)}
   .badge-bot{background:rgba(254,44,85,.15);color:var(--accent)}
   .badge-unclear{background:rgba(255,214,10,.12);color:var(--yellow)}
+  .badge-cib{background:rgba(56,189,248,.12);color:var(--blue)}
   .score-bar-wrap{width:80px}
   .score-bar{height:6px;border-radius:3px;background:var(--bg4);overflow:hidden}
   .score-fill{height:100%;border-radius:3px;transition:width .3s}
@@ -107,6 +116,31 @@
   .job-progress{height:4px;background:var(--bg4);border-radius:2px;margin-top:8px;overflow:hidden}
   .job-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .5s}
   .job-msg{color:var(--text2);font-size:12px}
+
+  /* ── CIB ── */
+  .cib-header{display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  .cib-header h2{font-size:16px;font-weight:700}
+  .cib-stats-bar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .cib-stat{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px 18px;text-align:center;min-width:110px}
+  .cib-stat .n{font-family:var(--mono);font-size:22px;font-weight:700}
+  .cib-stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+  .cluster-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
+  .cluster-header{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;user-select:none}
+  .cluster-header:hover{background:var(--bg3)}
+  .cluster-id{background:rgba(56,189,248,.12);color:var(--blue);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;font-family:var(--mono)}
+  .cluster-score{font-family:var(--mono);font-size:16px;font-weight:700}
+  .cluster-signals{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .sig-chip{background:var(--bg4);border:1px solid var(--border);border-radius:3px;padding:2px 7px;font-size:10px;color:var(--text2)}
+  .cluster-body{display:none;border-top:1px solid var(--border);padding:12px 16px}
+  .cluster-body.open{display:block}
+  .cluster-accounts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:10px}
+  .cluster-account{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;display:flex;align-items:center;gap:10px}
+  .cluster-account .handle{font-family:var(--mono);font-size:12px;font-weight:600}
+  .cluster-account .sub{font-size:10px;color:var(--text3);margin-top:1px}
+  .cib-score-pill{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700;font-family:var(--mono)}
+  .cib-high{background:rgba(254,44,85,.2);color:var(--accent)}
+  .cib-mid{background:rgba(255,214,10,.15);color:var(--yellow)}
+  .cib-low{background:rgba(56,189,248,.12);color:var(--blue)}
 
   /* ── Account Detail Modal ── */
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;overflow-y:auto;padding:24px 16px}
@@ -188,6 +222,7 @@
     <nav>
       <button class="active" onclick="showTab('analyse')">Analyse</button>
       <button onclick="showTab('results')">Résultats</button>
+      <button class="tab-cib-btn" onclick="showTab('cib')">Réseau CIB</button>
       <button onclick="showTab('config')">Config</button>
     </nav>
     <div class="header-right">
@@ -209,6 +244,12 @@
         <div class="sidebar-row"><span class="label">🚩 Signalés</span><span class="val val-purple" id="s-flagged">—</span></div>
       </div>
       <div class="sidebar-section">
+        <h4>CIB</h4>
+        <div class="sidebar-row"><span class="label">Clusters détectés</span><span class="val val-blue" id="s-clusters">—</span></div>
+        <div class="sidebar-row"><span class="label">Comptes coordonnés</span><span class="val val-blue" id="s-coordinated">—</span></div>
+        <button class="btn btn-blue btn-sm" style="width:100%;margin-top:8px" onclick="showTab('cib')">→ Analyse CIB</button>
+      </div>
+      <div class="sidebar-section">
         <h4>Filtres rapides</h4>
         <button class="btn" style="width:100%;margin-bottom:6px;font-size:11px;text-align:left" onclick="filterVerdict('')">Tous les comptes</button>
         <button class="btn" style="width:100%;margin-bottom:6px;font-size:11px;text-align:left;color:var(--accent)" onclick="filterVerdict('bot')">🔴 Bots uniquement</button>
@@ -222,9 +263,17 @@
     </aside>
 
     <div class="content">
-      <!-- ── ANALYSE ──────────────────────────────────────────────────────── -->
+
+      <!-- ── ANALYSE ─────────────────────────────────────────────────────── -->
       <div class="tab-pane active" id="tab-analyse">
-        <div class="search-bar">
+
+        <div class="mode-tabs">
+          <button class="mode-tab active" id="mode-handles-btn" onclick="setMode('handles')">@ Handles</button>
+          <button class="mode-tab" id="mode-hashtag-btn" onclick="setMode('hashtag'"># Hashtag</button>
+        </div>
+
+        <!-- Mode handles -->
+        <div id="mode-handles" class="search-bar">
           <h3>Analyser des comptes TikTok</h3>
           <div class="search-input-row">
             <textarea id="handles-input" placeholder="@compte1&#10;@compte2&#10;compte3&#10;&#10;Un @handle par ligne (max 50)"></textarea>
@@ -238,6 +287,20 @@
           </div>
         </div>
 
+        <!-- Mode hashtag -->
+        <div id="mode-hashtag" class="search-bar" style="display:none">
+          <h3>Scraper par hashtag</h3>
+          <div class="hashtag-row">
+            <input id="hashtag-input" type="text" placeholder="#hashtag ou mot-clé" style="max-width:260px">
+            <input id="hashtag-maxvid" type="number" value="50" min="10" max="200" title="Max vidéos à scraper">
+            <span style="color:var(--text3);font-size:11px">vidéos max</span>
+            <button class="btn-primary" onclick="startHashtagScrape()">▶ Scraper</button>
+          </div>
+          <div style="margin-top:10px;color:var(--text3);font-size:11px">
+            Récupère les vidéos du hashtag via TikFly, extrait les auteurs uniques et les analyse automatiquement.
+          </div>
+        </div>
+
         <!-- Job progress -->
         <div class="job-bar" id="job-bar">
           <div class="job-msg" id="job-msg">Analyse en cours…</div>
@@ -246,11 +309,10 @@
           </div>
         </div>
 
-        <!-- Results preview after job -->
         <div id="job-results"></div>
       </div>
 
-      <!-- ── RESULTS ──────────────────────────────────────────────────────── -->
+      <!-- ── RESULTS ─────────────────────────────────────────────────────── -->
       <div class="tab-pane" id="tab-results">
         <div class="table-header">
           <h3>Comptes analysés</h3>
@@ -273,6 +335,37 @@
         </div>
       </div>
 
+      <!-- ── RÉSEAU CIB ──────────────────────────────────────────────────── -->
+      <div class="tab-pane" id="tab-cib">
+        <div class="cib-header">
+          <div>
+            <h2>Détection CIB — Comportements Coordonnés</h2>
+            <p style="color:var(--text2);font-size:12px;margin-top:4px">
+              Analyse les comptes en base pour détecter des réseaux de comptes coordonnés : hashtags partagés, synchronisation temporelle, sons identiques, descriptions copiées.
+            </p>
+          </div>
+          <button class="btn-blue" style="flex-shrink:0" onclick="runCIB()">⚡ Lancer l'analyse CIB</button>
+        </div>
+
+        <div class="cib-stats-bar">
+          <div class="cib-stat"><div class="n" id="cib-analyzed" style="color:var(--text)">—</div><div class="l">Analysés</div></div>
+          <div class="cib-stat"><div class="n" id="cib-clusters" style="color:var(--blue)">—</div><div class="l">Clusters</div></div>
+          <div class="cib-stat"><div class="n" id="cib-coordinated" style="color:var(--accent)">—</div><div class="l">Coordonnés</div></div>
+          <div class="cib-stat" id="cib-ts-card" style="display:none"><div class="n" id="cib-ts" style="color:var(--text3);font-size:11px">—</div><div class="l">Dernière analyse</div></div>
+        </div>
+
+        <div id="cib-loading" style="display:none;color:var(--text2);font-size:13px;padding:20px 0">
+          ⏳ Analyse en cours…
+        </div>
+
+        <div id="cib-clusters-wrap">
+          <div class="empty">
+            <h3>Aucune analyse CIB</h3>
+            <p>Cliquez sur "Lancer l'analyse CIB" pour détecter les comportements coordonnés</p>
+          </div>
+        </div>
+      </div>
+
       <!-- ── CONFIG ──────────────────────────────────────────────────────── -->
       <div class="tab-pane" id="tab-config">
         <div class="config-form">
@@ -281,7 +374,7 @@
 
           <label>TikFly API Key (RapidAPI — tiktok-api23.p.rapidapi.com)</label>
           <input id="cfg-tikfly" type="password" placeholder="Entrez votre clé RapidAPI / TikFly">
-          <div class="config-note">Obligatoire pour analyser des comptes TikTok.</div>
+          <div class="config-note">Obligatoire pour scraper des comptes TikTok.</div>
 
           <label style="margin-top:20px">LLM — Groq API Key (analyse approfondie)</label>
           <input id="cfg-groq" type="password" placeholder="gsk_…">
@@ -304,7 +397,8 @@
           </div>
         </div>
       </div>
-    </div>
+
+    </div><!-- /content -->
   </main>
 </div>
 
@@ -348,11 +442,14 @@
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
-let _accounts = [];
+let _accounts    = [];
 let _currentJobId = null;
-let _jobPoll = null;
-let _detailUid = null;
-let _scoreUid = null;
+let _jobPoll     = null;
+let _detailUid   = null;
+let _scoreUid    = null;
+let _scrapeMode  = 'handles';
+
+const TABS = ['analyse','results','cib','config'];
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 async function doLogin(e) {
@@ -361,18 +458,17 @@ async function doLogin(e) {
   err.style.display = 'none';
   try {
     const r = await fetch('/api/login', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      credentials: 'include',
+      method:'POST', headers:{'Content-Type':'application/json'},
+      credentials:'include',
       body: JSON.stringify({
         username: document.getElementById('l-user').value.trim(),
         password: document.getElementById('l-pass').value,
       })
     });
     const d = await r.json();
-    if (!r.ok) { err.textContent = d.error || 'Erreur'; err.style.display = 'block'; return; }
+    if (!r.ok) { err.textContent = d.error||'Erreur'; err.style.display='block'; return; }
     showApp();
-  } catch(ex) { err.textContent = ex.message; err.style.display = 'block'; }
+  } catch(ex) { err.textContent = ex.message; err.style.display='block'; }
 }
 
 async function doLogout() {
@@ -393,16 +489,26 @@ function showApp() {
   loadStats();
   loadAccounts();
   loadConfig();
+  loadCIBResult();
 }
 
 function showTab(name) {
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('tab-'+name)?.classList.add('active');
   document.querySelectorAll('nav button').forEach((btn, i) => {
-    const tabs = ['analyse','results','config'];
-    btn.classList.toggle('active', tabs[i] === name);
+    btn.classList.toggle('active', TABS[i] === name);
   });
   if (name === 'results') loadAccounts();
+  if (name === 'cib') loadCIBResult();
+}
+
+// ── Scraping mode ─────────────────────────────────────────────────────────────
+function setMode(mode) {
+  _scrapeMode = mode;
+  document.getElementById('mode-handles').style.display = mode === 'handles' ? 'block' : 'none';
+  document.getElementById('mode-hashtag').style.display = mode === 'hashtag' ? 'block' : 'none';
+  document.getElementById('mode-handles-btn').classList.toggle('active', mode === 'handles');
+  document.getElementById('mode-hashtag-btn').classList.toggle('active', mode === 'hashtag');
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -411,35 +517,44 @@ async function loadStats() {
   const d = await r.json();
   if (!d.ok) return;
   const s = d.stats;
-  document.getElementById('h-total').textContent = s.total;
-  document.getElementById('h-bots').textContent  = s.bots;
-  document.getElementById('h-legit').textContent = s.legit;
-  document.getElementById('s-total').textContent = s.total;
-  document.getElementById('s-bots').textContent  = s.bots;
+  document.getElementById('h-total').textContent  = s.total;
+  document.getElementById('h-bots').textContent   = s.bots;
+  document.getElementById('h-legit').textContent  = s.legit;
+  document.getElementById('s-total').textContent  = s.total;
+  document.getElementById('s-bots').textContent   = s.bots;
   document.getElementById('s-unclear').textContent = s.unclear;
-  document.getElementById('s-legit').textContent = s.legit;
+  document.getElementById('s-legit').textContent  = s.legit;
   document.getElementById('s-flagged').textContent = s.flagged;
 }
 
-// ── Analysis ─────────────────────────────────────────────────────────────────
+// ── Analysis (handles) ────────────────────────────────────────────────────────
 function startAnalysis() {
   const raw = document.getElementById('handles-input').value.trim();
   if (!raw) { toast('Entrez au moins un @handle', 'error'); return; }
   const handles = raw.split(/[\n,;]+/).map(h=>h.trim().replace(/^@/,'')).filter(Boolean);
   if (!handles.length) { toast('Aucun handle valide', 'error'); return; }
   if (handles.length > 50) { toast('Max 50 comptes par batch', 'error'); return; }
+  _launchJob('/api/analyze', {handles});
+}
 
-  fetch('/api/analyze', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    credentials:'include',
-    body: JSON.stringify({handles})
+// ── Analysis (hashtag) ────────────────────────────────────────────────────────
+function startHashtagScrape() {
+  const ht = document.getElementById('hashtag-input').value.trim().replace(/^#/,'');
+  if (!ht) { toast('Entrez un hashtag', 'error'); return; }
+  const maxVid = parseInt(document.getElementById('hashtag-maxvid').value) || 50;
+  _launchJob('/api/scrape/hashtag', {hashtag: ht, max_videos: maxVid});
+}
+
+function _launchJob(endpoint, body) {
+  fetch(endpoint, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    credentials:'include', body: JSON.stringify(body)
   }).then(r=>r.json()).then(d=>{
     if (d.error) { toast(d.error,'error'); return; }
     _currentJobId = d.job_id;
     document.getElementById('job-bar').classList.add('running');
     document.getElementById('job-results').innerHTML = '';
-    _jobPoll = setInterval(pollJob, 1000);
+    _jobPoll = setInterval(pollJob, 1200);
   }).catch(e=>toast(e.message,'error'));
 }
 
@@ -448,16 +563,14 @@ async function pollJob() {
   try {
     const r = await fetch(`/api/job/${_currentJobId}`, {credentials:'include'});
     const d = await r.json();
-    document.getElementById('job-msg').textContent = d.msg || '…';
-    document.getElementById('job-fill').style.width = (d.progress||0)+'%';
-
+    document.getElementById('job-msg').textContent   = d.msg || '…';
+    document.getElementById('job-fill').style.width  = (d.progress||0)+'%';
     if (d.status === 'done') {
       clearInterval(_jobPoll);
       document.getElementById('job-bar').classList.remove('running');
       renderJobResults(d.results || []);
-      loadStats();
-      loadAccounts();
-      toast(`✅ ${d.results?.length || 0} compte(s) analysé(s)`);
+      loadStats(); loadAccounts();
+      toast(`✅ ${d.results?.length||0} compte(s) traité(s)`);
     } else if (d.status === 'error') {
       clearInterval(_jobPoll);
       document.getElementById('job-bar').classList.remove('running');
@@ -468,7 +581,7 @@ async function pollJob() {
 
 function renderJobResults(results) {
   const wrap = document.getElementById('job-results');
-  if (!results.length) { wrap.innerHTML = ''; return; }
+  if (!results.length) { wrap.innerHTML=''; return; }
   wrap.innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">
@@ -481,10 +594,11 @@ function renderJobResults(results) {
           <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Verdict</th>
           <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Followers</th>
         </tr></thead>
-        <tbody>${results.map(r=> r.error
-          ? `<tr><td style="padding:8px 12px;font-family:var(--mono);font-size:12px">@${r.handle}</td><td colspan="3" style="padding:8px 12px;color:var(--accent);font-size:11px">${r.error}</td></tr>`
-          : `<tr style="cursor:pointer" onclick="openDetail('@${r.handle}')">
-              <td style="padding:8px 12px;font-family:var(--mono);font-size:12px">@${r.handle}</td>
+        <tbody>${results.map(r => r.error
+          ? `<tr><td style="padding:8px 12px;font-family:var(--mono);font-size:12px">@${escHtml(r.handle)}</td>
+              <td colspan="3" style="padding:8px 12px;color:var(--accent);font-size:11px">${escHtml(r.error)}</td></tr>`
+          : `<tr style="cursor:pointer" onclick="openDetail('@${escHtml(r.handle)}')">
+              <td style="padding:8px 12px;font-family:var(--mono);font-size:12px">@${escHtml(r.handle)}</td>
               <td style="padding:8px 12px;font-family:var(--mono);font-weight:700;font-size:14px;color:${scoreColor(r.bot_score)}">${r.bot_score}</td>
               <td style="padding:8px 12px">${verdictBadge(r.verdict)}</td>
               <td style="padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(r.followers)}</td>
@@ -496,9 +610,9 @@ function renderJobResults(results) {
 
 // ── Accounts list ─────────────────────────────────────────────────────────────
 async function loadAccounts() {
-  const verdict  = document.getElementById('verdict-filter')?.value || '';
-  const flagged  = document.getElementById('flagged-only')?.checked ? '1' : '0';
-  const params   = new URLSearchParams({limit:500, offset:0});
+  const verdict = document.getElementById('verdict-filter')?.value || '';
+  const flagged = document.getElementById('flagged-only')?.checked ? '1' : '0';
+  const params  = new URLSearchParams({limit:500, offset:0});
   if (verdict) params.set('verdict', verdict);
   if (flagged === '1') params.set('flagged', '1');
   const r = await fetch('/api/accounts?'+params, {credentials:'include'});
@@ -520,6 +634,7 @@ function filterTable(q) {
 function filterVerdict(v) {
   document.getElementById('verdict-filter').value = v;
   loadAccounts();
+  showTab('results');
 }
 
 function renderAccounts(accounts) {
@@ -531,24 +646,19 @@ function renderAccounts(accounts) {
   wrap.innerHTML = `
     <table>
       <thead><tr>
-        <th>Compte</th>
-        <th>Score</th>
-        <th>Verdict</th>
-        <th>Abonnés</th>
-        <th>Following</th>
-        <th>Vidéos</th>
-        <th>Flags</th>
-        <th>Actions</th>
+        <th>Compte</th><th>Score</th><th>Verdict</th>
+        <th>Abonnés</th><th>Following</th><th>Vidéos</th><th>Flags</th><th>Actions</th>
       </tr></thead>
       <tbody>${accounts.map(a => {
-        const patterns = typeof a.patterns === 'string' ? JSON.parse(a.patterns||'[]') : (a.patterns||[]);
+        const patterns  = Array.isArray(a.patterns) ? a.patterns : (JSON.parse(a.patterns||'[]') || []);
         const flagColor = scoreColor(a.bot_score);
         return `<tr>
           <td>
             <div class="avatar-cell">
-              ${a.avatar ? `<img class="avatar" src="${a.avatar}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
-                <div class="avatar-fallback" style="display:none">👤</div>` :
-                `<div class="avatar-fallback">👤</div>`}
+              ${a.avatar
+                ? `<img class="avatar" src="${escHtml(a.avatar)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+                   <div class="avatar-fallback" style="display:none">👤</div>`
+                : `<div class="avatar-fallback">👤</div>`}
               <div class="handle-cell">
                 <div class="name">${escHtml(a.display_name||a.unique_id)}${a.verified?'<span class="verified-icon">✓</span>':''}</div>
                 <div class="uid">@${escHtml(a.unique_id)}</div>
@@ -586,20 +696,20 @@ async function openDetail(handle) {
   const acc = _accounts.find(a => a.unique_id === uid);
   if (!acc) { toast('Compte non trouvé', 'error'); return; }
 
-  const ctx = typeof acc.context === 'string' ? JSON.parse(acc.context||'{}') : (acc.context||{});
+  const ctx      = typeof acc.context === 'string' ? JSON.parse(acc.context||'{}') : (acc.context||{});
   const patterns = typeof acc.patterns === 'string' ? JSON.parse(acc.patterns||'[]') : (acc.patterns||[]);
-  const user = ctx.user || {};
-  const layers = ctx.layers || {};
+  const user     = ctx.user || {};
+  const layers   = ctx.layers || {};
   const flagColor = scoreColor(acc.bot_score);
 
   const layerItems = [
-    {k:'surface',  name:'Surface',  max:25},
-    {k:'stats',    name:'Stats',    max:35},
-    {k:'content',  name:'Contenu',  max:25},
-    {k:'network',  name:'Réseau',   max:15},
+    {k:'surface', name:'Surface', max:25},
+    {k:'stats',   name:'Stats',   max:35},
+    {k:'content', name:'Contenu', max:25},
+    {k:'network', name:'Réseau',  max:15},
   ].map(l => {
     const layer = layers[l.k] || {};
-    const s = layer.score ?? 0;
+    const s   = layer.score ?? 0;
     const pct = (s / l.max * 100).toFixed(0);
     const col = s >= l.max*0.7 ? 'var(--green)' : s >= l.max*0.4 ? 'var(--yellow)' : 'var(--accent)';
     return `<div class="layer-card">
@@ -610,8 +720,7 @@ async function openDetail(handle) {
     </div>`;
   }).join('');
 
-  const content = document.getElementById('detail-content');
-  content.innerHTML = `
+  document.getElementById('detail-content').innerHTML = `
     <div class="account-header">
       ${acc.avatar
         ? `<img class="account-avatar" src="${escHtml(acc.avatar)}">`
@@ -627,30 +736,25 @@ async function openDetail(handle) {
         <div style="margin-top:6px">${verdictBadge(acc.verdict)}</div>
       </div>
     </div>
-
     <div class="stats-grid">
       <div class="stat-card"><div class="num">${fmtNum(acc.followers)}</div><div class="lbl">Abonnés</div></div>
       <div class="stat-card"><div class="num">${fmtNum(acc.following)}</div><div class="lbl">Following</div></div>
       <div class="stat-card"><div class="num">${fmtNum(acc.hearts)}</div><div class="lbl">Total Likes</div></div>
       <div class="stat-card"><div class="num">${fmtNum(acc.video_count)}</div><div class="lbl">Vidéos</div></div>
     </div>
-
     <div class="section-title">Couches de scoring</div>
     <div class="layers-grid">${layerItems}</div>
-
-    ${patterns.length ? `
-      <div class="section-title">Flags détectés (${patterns.length})</div>
-      <ul class="flags-list">${patterns.map(f=>`<li>${escHtml(f)}</li>`).join('')}</ul>
-    ` : '<div style="color:var(--green);font-size:12px;margin:10px 0">✅ Aucun signal suspect détecté</div>'}
-
+    ${patterns.length
+      ? `<div class="section-title">Flags détectés (${patterns.length})</div>
+         <ul class="flags-list">${patterns.map(f=>`<li>${escHtml(f)}</li>`).join('')}</ul>`
+      : '<div style="color:var(--green);font-size:12px;margin:10px 0">✅ Aucun signal suspect détecté</div>'}
     <div class="section-title">Analyse LLM approfondie</div>
-    <button class="btn" style="font-size:12px" onclick="runLLM('${uid}')">🧠 Lancer l'analyse LLM</button>
-    <div id="llm-result-${uid}"></div>
-
+    <button class="btn" style="font-size:12px" onclick="runLLM('${escHtml(uid)}')">🧠 Lancer l'analyse LLM</button>
+    <div id="llm-result-${escHtml(uid)}"></div>
     <div style="display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-      <button class="btn btn-sm" onclick="openScoreModal('${uid}',${acc.bot_score},'${acc.verdict}')">✏ Corriger score</button>
-      <button class="btn btn-sm" onclick="toggleFlag('${uid}',${acc.flagged?0:1})" style="${acc.flagged?'color:var(--accent)':''}">🚩 ${acc.flagged?'Désignaler':'Signaler'}</button>
-      <a href="https://www.tiktok.com/@${uid}" target="_blank" class="btn btn-sm">↗ Voir sur TikTok</a>
+      <button class="btn btn-sm" onclick="openScoreModal('${escHtml(uid)}',${acc.bot_score},'${acc.verdict}')">✏ Corriger score</button>
+      <button class="btn btn-sm" onclick="toggleFlag('${escHtml(uid)}',${acc.flagged?0:1})" style="${acc.flagged?'color:var(--accent)':''}">🚩 ${acc.flagged?'Désignaler':'Signaler'}</button>
+      <a href="https://www.tiktok.com/@${escHtml(uid)}" target="_blank" class="btn btn-sm">↗ TikTok</a>
     </div>`;
 
   document.getElementById('detail-modal').classList.add('open');
@@ -671,20 +775,112 @@ async function runLLM(uid) {
       credentials:'include', body: JSON.stringify({unique_id: uid})
     });
     const d = await r.json();
-    if (d.error) { box.innerHTML = `<div style="color:var(--accent);font-size:12px;margin-top:8px">Erreur : ${escHtml(d.error)}</div>`; return; }
+    if (d.error) { box.innerHTML=`<div style="color:var(--accent);font-size:12px;margin-top:8px">Erreur : ${escHtml(d.error)}</div>`; return; }
     box.innerHTML = `<div class="llm-box">${escHtml(d.analysis)}</div>
       <div style="color:var(--text3);font-size:10px;margin-top:4px">Modèle : ${d.model_used} · ${d.tokens} tokens</div>`;
-  } catch(e) { box.innerHTML = `<div style="color:var(--accent);font-size:12px;margin-top:8px">Erreur : ${escHtml(e.message)}</div>`; }
+  } catch(e) { box.innerHTML=`<div style="color:var(--accent);font-size:12px;margin-top:8px">Erreur : ${escHtml(e.message)}</div>`; }
+}
+
+// ── CIB ───────────────────────────────────────────────────────────────────────
+async function runCIB() {
+  document.getElementById('cib-loading').style.display = 'block';
+  document.getElementById('cib-clusters-wrap').innerHTML = '';
+  try {
+    const r = await fetch('/api/cib/run', {method:'POST', credentials:'include'});
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); document.getElementById('cib-loading').style.display='none'; return; }
+    renderCIB(d);
+    toast(`CIB : ${d.stats?.clusters||0} cluster(s) détecté(s)`);
+  } catch(e) { toast(e.message,'error'); }
+  document.getElementById('cib-loading').style.display = 'none';
+}
+
+async function loadCIBResult() {
+  try {
+    const r = await fetch('/api/cib/result', {credentials:'include'});
+    const d = await r.json();
+    if (d.ok) renderCIB(d);
+  } catch(e) {}
+}
+
+function renderCIB(data) {
+  const stats = data.stats || {};
+  document.getElementById('cib-analyzed').textContent    = stats.analyzed ?? '—';
+  document.getElementById('cib-clusters').textContent    = stats.clusters ?? '—';
+  document.getElementById('cib-coordinated').textContent = stats.coordinated ?? '—';
+  document.getElementById('s-clusters').textContent      = stats.clusters ?? '—';
+  document.getElementById('s-coordinated').textContent   = stats.coordinated ?? '—';
+
+  if (data.ts) {
+    document.getElementById('cib-ts').textContent = new Date(data.ts).toLocaleString('fr-FR');
+    document.getElementById('cib-ts-card').style.display = 'block';
+  }
+
+  const clusters  = data.clusters || [];
+  const accountCib = data.accounts || {};
+  const wrap = document.getElementById('cib-clusters-wrap');
+
+  if (!clusters.length) {
+    wrap.innerHTML = `<div class="empty"><h3>Aucun cluster détecté</h3>
+      <p>Aucun comportement coordonné trouvé parmi ${stats.analyzed||0} comptes analysés.</p>
+      <p style="margin-top:8px;font-size:11px;color:var(--text3)">Ajoutez plus de comptes au même réseau pour améliorer la détection.</p></div>`;
+    return;
+  }
+
+  wrap.innerHTML = clusters.map(cl => {
+    const scoreColor = cl.cib_score >= 60 ? 'var(--accent)' : cl.cib_score >= 35 ? 'var(--yellow)' : 'var(--blue)';
+    const sigChips   = cl.signals.slice(0,4).map(s => `<span class="sig-chip">${escHtml(s)}</span>`).join('');
+
+    const accountCards = cl.accounts.map(uid => {
+      const info    = accountCib[uid] || {};
+      const acc     = _accounts.find(a => a.unique_id === uid) || {};
+      const cs      = info.cib_score || 0;
+      const pill    = cs >= 60 ? 'cib-high' : cs >= 35 ? 'cib-mid' : 'cib-low';
+      return `<div class="cluster-account" style="cursor:pointer" onclick="openDetail('@${escHtml(uid)}')">
+        ${acc.avatar
+          ? `<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="${escHtml(acc.avatar)}" onerror="this.style.display='none'">`
+          : `<div style="width:32px;height:32px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">👤</div>`}
+        <div style="min-width:0">
+          <div class="handle">@${escHtml(uid)}</div>
+          <div class="sub">
+            CIB <span class="cib-score-pill ${pill}">${cs}</span>
+            · Auth <span style="font-family:var(--mono);color:${scoreColor(acc.bot_score||50)}">${acc.bot_score||'?'}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="cluster-card">
+      <div class="cluster-header" onclick="toggleCluster(${cl.cluster_id})">
+        <span class="cluster-id">Cluster #${cl.cluster_id}</span>
+        <span style="color:var(--text2);font-size:12px">${cl.size} comptes</span>
+        <span class="cluster-score" style="color:${scoreColor}">${cl.cib_score}</span>
+        <div class="cluster-signals">${sigChips}</div>
+        <span style="color:var(--text3);font-size:16px" id="caret-${cl.cluster_id}">›</span>
+      </div>
+      <div class="cluster-body" id="cluster-body-${cl.cluster_id}">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Signaux détectés : ${cl.signals.map(s=>`<span class="sig-chip">${escHtml(s)}</span>`).join(' ')}</div>
+        <div class="cluster-accounts">${accountCards}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCluster(id) {
+  const body  = document.getElementById('cluster-body-'+id);
+  const caret = document.getElementById('caret-'+id);
+  const open  = body.classList.toggle('open');
+  if (caret) caret.textContent = open ? '⌄' : '›';
 }
 
 // ── Score modal ───────────────────────────────────────────────────────────────
 function openScoreModal(uid, score, verdict) {
   _scoreUid = uid;
   document.getElementById('smod-uid').textContent = '@'+uid;
-  document.getElementById('smod-slider').value = score;
+  document.getElementById('smod-slider').value    = score;
   document.getElementById('smod-val').textContent = score;
-  document.getElementById('smod-verdict').value = verdict || 'unclear';
-  document.getElementById('smod-notes').value = '';
+  document.getElementById('smod-verdict').value   = verdict || 'unclear';
+  document.getElementById('smod-notes').value     = '';
   document.getElementById('score-modal').classList.add('open');
 }
 function closeScoreModal() {
@@ -698,8 +894,7 @@ async function saveScore() {
   const notes   = document.getElementById('smod-notes').value;
   const r = await fetch(`/api/account/${_scoreUid}/score`, {
     method:'POST', headers:{'Content-Type':'application/json'},
-    credentials:'include',
-    body: JSON.stringify({score, verdict, notes})
+    credentials:'include', body: JSON.stringify({score, verdict, notes})
   });
   const d = await r.json();
   closeScoreModal();
@@ -729,22 +924,18 @@ async function loadConfig() {
   const d = await r.json();
   if (!d.ok) return;
   const cfg = d.config;
-  if (cfg.tikfly_key) document.getElementById('cfg-tikfly').placeholder = cfg.tikfly_key;
-  if (cfg.groq_key)   document.getElementById('cfg-groq').placeholder   = cfg.groq_key;
-  if (cfg.openai_key) document.getElementById('cfg-openai').placeholder = cfg.openai_key;
+  if (cfg.tikfly_key)  document.getElementById('cfg-tikfly').placeholder  = cfg.tikfly_key;
+  if (cfg.groq_key)    document.getElementById('cfg-groq').placeholder    = cfg.groq_key;
+  if (cfg.openai_key)  document.getElementById('cfg-openai').placeholder  = cfg.openai_key;
   if (cfg.mistral_key) document.getElementById('cfg-mistral').placeholder = cfg.mistral_key;
-  if (cfg.gemini_key) document.getElementById('cfg-gemini').placeholder = cfg.gemini_key;
-  if (cfg.max_videos) document.getElementById('cfg-maxvid').value = cfg.max_videos;
+  if (cfg.gemini_key)  document.getElementById('cfg-gemini').placeholder  = cfg.gemini_key;
+  if (cfg.max_videos)  document.getElementById('cfg-maxvid').value        = cfg.max_videos;
 }
 async function saveConfig() {
   const body = {};
   const fields = [
-    ['tikfly_key','cfg-tikfly'],
-    ['groq_key','cfg-groq'],
-    ['openai_key','cfg-openai'],
-    ['mistral_key','cfg-mistral'],
-    ['gemini_key','cfg-gemini'],
-    ['max_videos','cfg-maxvid'],
+    ['tikfly_key','cfg-tikfly'],['groq_key','cfg-groq'],['openai_key','cfg-openai'],
+    ['mistral_key','cfg-mistral'],['gemini_key','cfg-gemini'],['max_videos','cfg-maxvid'],
   ];
   for (const [k, id] of fields) {
     const v = document.getElementById(id)?.value?.trim();
@@ -761,12 +952,11 @@ async function saveConfig() {
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
 function exportCSV() {
-  if (!_accounts.length) { toast('Aucune donnée', 'error'); return; }
+  if (!_accounts.length) { toast('Aucune donnée','error'); return; }
   const rows = [['unique_id','display_name','bot_score','verdict','followers','following','hearts','video_count','verified','region','flagged']];
-  for (const a of _accounts) {
+  for (const a of _accounts)
     rows.push([a.unique_id,a.display_name,a.bot_score,a.verdict,a.followers,a.following,a.hearts,a.video_count,a.verified?1:0,a.region||'',a.flagged?1:0]);
-  }
-  const csv = rows.map(r=>r.join(',')).join('\n');
+  const csv  = rows.map(r=>r.join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -802,12 +992,10 @@ function toast(msg, type) {
   setTimeout(() => el.classList.remove('show'), 2800);
 }
 
-// Close modals on Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeDetail(); closeScoreModal(); }
 });
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
 checkAuth();
 </script>
 </body>
