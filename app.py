@@ -585,10 +585,11 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
 @app.route('/api/hashtag/videos', methods=['POST'])
 @login_required
 def api_hashtag_videos():
-    """Étape 1 : retourne les publications d'un hashtag (sans analyser les profils)."""
+    """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
     body     = request.get_json(silent=True) or {}
     hashtag  = (body.get('hashtag') or '').lstrip('#').strip()
-    max_vids = min(int(body.get('max_videos', 50)), 200)
+    max_vids = min(int(body.get('max_videos', 30)), 100)
+    max_coms = min(int(body.get('max_comments', 20)), 50)
     if not hashtag:
         return jsonify({'error': 'hashtag requis'}), 400
 
@@ -602,40 +603,73 @@ def api_hashtag_videos():
     except Exception as e:
         return jsonify({'error': f'Erreur API: {_safe_err(e, 200)}'}), 500
 
-    # Sérialiser les vidéos pour le front
+    # Fetch commentaires en parallèle
+    def _fetch_coms(vid_id):
+        try:
+            return vid_id, collector.get_video_comments(vid_id, max_comments=max_coms)
+        except Exception as e:
+            logger.warning(f'[hashtag/coms] {vid_id}: {e}')
+            return vid_id, []
+
+    vid_ids = [v['video_id'] for v in videos if v.get('video_id')]
+    comments_map: dict[str, list] = {}
+    if vid_ids:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for vid_id, coms in ex.map(_fetch_coms, vid_ids):
+                comments_map[vid_id] = coms
+
+    # Sérialiser
     out = []
-    author_ids = set()
+    author_ids: set[str] = set()
     for v in videos:
         author = v.get('_author') or {}
         uid    = author.get('unique_id') or v.get('author_unique_id') or ''
         if uid:
             author_ids.add(uid)
+
+        vid_id = v.get('video_id', '')
         out.append({
-            'video_id':     v.get('video_id', ''),
-            'desc':         v.get('desc', ''),
-            'created_at':   v.get('created_at', ''),
-            'plays':        v.get('plays', 0),
-            'likes':        v.get('likes', 0),
-            'comments':     v.get('comments', 0),
-            'shares':       v.get('shares', 0),
-            'hashtags':     v.get('hashtags', []),
-            'music_title':  v.get('music_title', ''),
-            'duration':     v.get('duration', 0),
+            # Vidéo
+            'video_id':          vid_id,
+            'desc':              v.get('desc', ''),
+            'created_at':        v.get('created_at', ''),
+            'create_ts':         v.get('create_ts', 0),
+            'plays':             v.get('plays', 0),
+            'likes':             v.get('likes', 0),
+            'comments':          v.get('comments', 0),
+            'shares':            v.get('shares', 0),
+            'collects':          v.get('collects', 0),
+            'duration':          v.get('duration', 0),
+            'cover':             v.get('cover', ''),
+            'hashtags':          v.get('hashtags', []),
+            'music_id':          v.get('music_id', ''),
+            'music_title':       v.get('music_title', ''),
+            'music_author':      v.get('music_author', ''),
+            'is_original_sound': v.get('is_original_sound', False),
+            # Auteur (tout ce que la réponse contient)
             'author_unique_id':  uid,
             'author_name':       author.get('display_name') or uid,
             'author_avatar':     author.get('avatar') or '',
-            'author_verified':   author.get('verified') or False,
+            'author_verified':   bool(author.get('verified')),
             'author_followers':  author.get('followers') or 0,
+            'author_following':  author.get('following') or 0,
+            'author_hearts':     author.get('hearts') or 0,
+            'author_video_count': author.get('video_count') or 0,
+            'author_region':     author.get('region') or '',
+            'author_bio':        author.get('signature') or '',
+            'author_private':    bool(author.get('private')),
+            # Commentaires
+            'comment_data':      comments_map.get(vid_id, []),
         })
 
     _db.sh_insert(user_id='admin', keyword=f'#{hashtag}', mode='hashtag_videos',
                   account_count=len(author_ids))
 
     return jsonify({
-        'ok':        True,
-        'hashtag':   hashtag,
-        'videos':    out,
-        'total':     len(out),
+        'ok':         True,
+        'hashtag':    hashtag,
+        'videos':     out,
+        'total':      len(out),
         'author_ids': list(author_ids),
     })
 

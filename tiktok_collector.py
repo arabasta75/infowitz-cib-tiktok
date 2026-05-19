@@ -145,9 +145,10 @@ def normalize_tiktok_video(raw: dict) -> dict:
         try: return int(v or 0)
         except (ValueError, TypeError): return 0
 
-    stats = raw.get('stats') or raw.get('statistics') or {}
+    stats  = raw.get('stats') or raw.get('statistics') or {}
     author = raw.get('author') or {}
     music  = raw.get('music') or {}
+    video  = raw.get('video') or {}
     desc   = raw.get('desc') or raw.get('description') or ''
     hashtags = re.findall(r'#([A-Za-zÀ-ÿ0-9_]{2,})', desc)
 
@@ -159,22 +160,30 @@ def normalize_tiktok_video(raw: dict) -> dict:
         except Exception:
             pass
 
+    # Cover / thumbnail
+    cover = (video.get('cover') or video.get('originCover')
+             or video.get('dynamicCover') or video.get('shareCover', [None])[0] or '')
+
     return {
-        'video_id':     raw.get('id') or raw.get('aweme_id') or '',
-        'desc':         desc,
-        'created_at':   created_at,
-        'create_ts':    create_ts,
-        'plays':        _int(stats.get('playCount') or stats.get('play_count') or 0),
-        'likes':        _int(stats.get('diggCount') or stats.get('digg_count') or 0),
-        'comments':     _int(stats.get('commentCount') or stats.get('comment_count') or 0),
-        'shares':       _int(stats.get('shareCount') or stats.get('share_count') or 0),
-        'duration':     _int((raw.get('video') or {}).get('duration') or 0),
-        'hashtags':     hashtags,
-        'music_id':     music.get('id') or '',
-        'music_title':  music.get('title') or '',
+        'video_id':          raw.get('id') or raw.get('aweme_id') or '',
+        'desc':              desc,
+        'created_at':        created_at,
+        'create_ts':         create_ts,
+        'plays':             _int(stats.get('playCount') or stats.get('play_count') or 0),
+        'likes':             _int(stats.get('diggCount') or stats.get('digg_count') or 0),
+        'comments':          _int(stats.get('commentCount') or stats.get('comment_count') or 0),
+        'shares':            _int(stats.get('shareCount') or stats.get('share_count') or 0),
+        'collects':          _int(stats.get('collectCount') or stats.get('collect_count') or 0),
+        'duration':          _int(video.get('duration') or 0),
+        'cover':             cover,
+        'share_url':         raw.get('shareUrl') or raw.get('share_url') or '',
+        'hashtags':          hashtags,
+        'music_id':          music.get('id') or '',
+        'music_title':       music.get('title') or '',
+        'music_author':      music.get('authorName') or music.get('author') or '',
         'is_original_sound': bool(music.get('original') or False),
-        'author_unique_id': author.get('uniqueId') or '',
-        '_raw':         raw,
+        'author_unique_id':  author.get('uniqueId') or author.get('unique_id') or '',
+        '_raw':              raw,
     }
 
 
@@ -421,14 +430,20 @@ class TikFlyCollector:
             )
             for c in raw_items:
                 u = c.get('user') or {}
+                avatar_obj = u.get('avatar_thumb') or {}
+                avatar_url = (avatar_obj.get('url_list') or [None])[0] or u.get('avatarThumb') or ''
                 comments.append({
-                    'cid':       c.get('cid') or c.get('id') or '',
-                    'text':      c.get('text') or '',
-                    'like_count': int(c.get('digg_count') or c.get('like_count') or 0),
-                    'create_ts': int(c.get('create_time') or 0),
-                    'user_id':   u.get('uid') or u.get('id') or '',
-                    'unique_id': u.get('unique_id') or u.get('uniqueId') or '',
-                    'nickname':  u.get('nickname') or '',
+                    'cid':          c.get('cid') or c.get('id') or '',
+                    'text':         c.get('text') or '',
+                    'like_count':   int(c.get('digg_count') or 0),
+                    'reply_count':  int(c.get('reply_comment_total') or 0),
+                    'create_ts':    int(c.get('create_time') or 0),
+                    'lang':         c.get('comment_language') or '',
+                    'pinned':       bool(c.get('author_pin') or False),
+                    'user_id':      u.get('uid') or u.get('id') or '',
+                    'unique_id':    u.get('unique_id') or u.get('uniqueId') or '',
+                    'nickname':     u.get('nickname') or '',
+                    'user_avatar':  avatar_url,
                 })
 
             has_more = (data.get('data') or {}).get('has_more') or data.get('has_more') or False

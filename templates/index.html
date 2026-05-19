@@ -309,21 +309,9 @@
               <button class="btn-blue btn-sm" id="analyze-authors-btn" onclick="analyzeHashtagAuthors()" style="display:none">
                 🔍 Analyser les auteurs
               </button>
+              <button class="btn btn-sm" onclick="exportHashtagCSV()">⬇ CSV</button>
             </div>
-            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-              <table style="width:100%;border-collapse:collapse">
-                <thead><tr>
-                  <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Publication</th>
-                  <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Auteur</th>
-                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Vues</th>
-                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Likes</th>
-                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Commentaires</th>
-                  <th style="padding:8px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Partages</th>
-                  <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Date</th>
-                </tr></thead>
-                <tbody id="hashtag-videos-body"></tbody>
-              </table>
-            </div>
+            <div id="hashtag-videos-list"></div>
           </div>
         </div>
 
@@ -593,46 +581,115 @@ async function fetchHashtagVideos() {
   }
 }
 
+let _hashtagVideosData = [];
+
 function renderHashtagVideos(d) {
-  const videos = d.videos || [];
-  const wrap   = document.getElementById('hashtag-results');
-  const tbody  = document.getElementById('hashtag-videos-body');
+  _hashtagVideosData = d.videos || [];
+  const wrap    = document.getElementById('hashtag-results');
   const authBtn = document.getElementById('analyze-authors-btn');
 
   document.getElementById('hashtag-summary').innerHTML =
-    `<strong>${videos.length}</strong> publications · <strong>${_hashtagAuthorIds.length}</strong> auteurs uniques pour <span style="color:var(--accent)">#${escHtml(d.hashtag)}</span>`;
+    `<strong>${_hashtagVideosData.length}</strong> publications · <strong>${_hashtagAuthorIds.length}</strong> auteurs uniques · <span style="color:var(--accent)">#${escHtml(d.hashtag)}</span>`;
 
   authBtn.style.display = _hashtagAuthorIds.length ? 'inline-block' : 'none';
   authBtn.textContent   = `🔍 Analyser les ${_hashtagAuthorIds.length} auteurs`;
 
-  tbody.innerHTML = videos.map(v => {
-    const date = v.created_at ? v.created_at.slice(0,10) : '—';
-    const desc = v.desc ? escHtml(v.desc.slice(0, 80)) + (v.desc.length > 80 ? '…' : '') : '—';
-    const tags = v.hashtags.slice(0,3).map(t => `<span style="color:var(--accent);font-size:10px">#${escHtml(t)}</span>`).join(' ');
-    return `<tr>
-      <td style="padding:8px 12px;max-width:280px">
-        <div style="font-size:12px;color:var(--text);margin-bottom:3px">${desc}</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">${tags}</div>
-        ${v.music_title ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">🎵 ${escHtml(v.music_title.slice(0,40))}</div>` : ''}
-      </td>
-      <td style="padding:8px 12px;white-space:nowrap">
-        <div style="display:flex;align-items:center;gap:7px">
-          ${v.author_avatar ? `<img src="${escHtml(v.author_avatar)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">` : ''}
-          <div>
-            <div style="font-family:var(--mono);font-size:12px;font-weight:600">@${escHtml(v.author_unique_id)}</div>
-            <div style="font-size:10px;color:var(--text3)">${fmtNum(v.author_followers)} abonnés${v.author_verified ? ' ✓' : ''}</div>
+  const list = document.getElementById('hashtag-videos-list');
+  list.innerHTML = _hashtagVideosData.map((v, idx) => {
+    const date    = v.created_at ? v.created_at.slice(0,10) : '—';
+    const desc    = v.desc ? escHtml(v.desc.slice(0,100)) + (v.desc.length > 100 ? '…' : '') : '—';
+    const tags    = (v.hashtags||[]).slice(0,4).map(t=>`<span style="color:var(--accent);font-size:10px">#${escHtml(t)}</span>`).join(' ');
+    const nComs   = (v.comment_data||[]).length;
+    const dur     = v.duration ? `${v.duration}s` : '';
+
+    const comRows = (v.comment_data||[]).map(c => {
+      const cDate = c.create_ts ? new Date(c.create_ts*1000).toLocaleDateString('fr-FR') : '';
+      return `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        ${c.user_avatar ? `<img src="${escHtml(c.user_avatar)}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0;margin-top:1px" onerror="this.style.display='none'">` : '<div style="width:22px;height:22px;border-radius:50%;background:var(--bg4);flex-shrink:0"></div>'}
+        <div style="flex:1;min-width:0">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2)">@${escHtml(c.unique_id||c.nickname||'?')}</span>
+          ${c.pinned ? '<span style="font-size:9px;background:rgba(254,44,85,.15);color:var(--accent);padding:1px 5px;border-radius:3px;margin-left:4px">épinglé</span>' : ''}
+          <span style="font-size:10px;color:var(--text3);margin-left:6px">${cDate}</span>
+          <div style="font-size:12px;color:var(--text);margin-top:2px">${escHtml(c.text||'')}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">
+            ♥ ${c.like_count||0}${c.reply_count ? ` · ${c.reply_count} réponses` : ''}${c.lang ? ` · ${c.lang}` : ''}
           </div>
         </div>
-      </td>
-      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.plays)}</td>
-      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.likes)}</td>
-      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.comments)}</td>
-      <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text2)">${fmtNum(v.shares)}</td>
-      <td style="padding:8px 12px;font-size:11px;color:var(--text3)">${date}</td>
-    </tr>`;
+      </div>`;
+    }).join('');
+
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:12px 14px;align-items:start">
+
+        ${v.cover ? `<img src="${escHtml(v.cover)}" style="width:56px;height:72px;object-fit:cover;border-radius:4px;flex-shrink:0" onerror="this.style.display='none'">` :
+          `<div style="width:56px;height:72px;background:var(--bg4);border-radius:4px;flex-shrink:0"></div>`}
+
+        <div>
+          <div style="font-size:12px;color:var(--text);margin-bottom:4px;line-height:1.5">${desc}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">${tags}</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:10px;color:var(--text3)">👁 ${fmtNum(v.plays)}</span>
+            <span style="font-size:10px;color:var(--text3)">♥ ${fmtNum(v.likes)}</span>
+            <span style="font-size:10px;color:var(--text3)">💬 ${fmtNum(v.comments)}</span>
+            <span style="font-size:10px;color:var(--text3)">↗ ${fmtNum(v.shares)}</span>
+            ${v.collects ? `<span style="font-size:10px;color:var(--text3)">🔖 ${fmtNum(v.collects)}</span>` : ''}
+            ${dur ? `<span style="font-size:10px;color:var(--text3)">⏱ ${dur}</span>` : ''}
+            <span style="font-size:10px;color:var(--text3)">${date}</span>
+          </div>
+          ${v.music_title ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">🎵 ${escHtml(v.music_title.slice(0,50))}${v.music_author?' · '+escHtml(v.music_author.slice(0,30)):''}</div>` : ''}
+        </div>
+
+        <div style="min-width:140px;text-align:right">
+          <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:4px">
+            ${v.author_avatar ? `<img src="${escHtml(v.author_avatar)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">` : ''}
+            <div style="text-align:left">
+              <div style="font-family:var(--mono);font-size:11px;font-weight:700">@${escHtml(v.author_unique_id)}</div>
+              ${v.author_verified ? '<div style="font-size:9px;color:var(--accent)">✓ Vérifié</div>' : ''}
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--text3);line-height:1.7">
+            ${fmtNum(v.author_followers)} abonnés<br>
+            ${fmtNum(v.author_following)} following<br>
+            ${fmtNum(v.author_hearts)} likes<br>
+            ${v.author_region ? v.author_region : ''}
+          </div>
+          ${v.author_bio ? `<div style="font-size:10px;color:var(--text2);margin-top:3px;max-width:140px;text-align:left;white-space:normal;word-break:break-word">${escHtml(v.author_bio.slice(0,60))}</div>` : ''}
+          ${v.author_private ? '<div style="font-size:9px;color:var(--yellow);margin-top:2px">🔒 Privé</div>' : ''}
+        </div>
+      </div>
+
+      ${nComs > 0 ? `
+      <div style="border-top:1px solid var(--border)">
+        <button onclick="toggleComments(${idx})" style="width:100%;background:none;border:none;color:var(--text2);font-size:11px;padding:7px 14px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:6px">
+          <span id="com-caret-${idx}">›</span> ${nComs} commentaire${nComs>1?'s':''} récupéré${nComs>1?'s':''}
+        </button>
+        <div id="com-body-${idx}" style="display:none;padding:0 14px 10px">${comRows}</div>
+      </div>` : ''}
+    </div>`;
   }).join('');
 
   wrap.style.display = 'block';
+}
+
+function toggleComments(idx) {
+  const body  = document.getElementById('com-body-'+idx);
+  const caret = document.getElementById('com-caret-'+idx);
+  const open  = body.style.display === 'none';
+  body.style.display  = open ? 'block' : 'none';
+  caret.textContent   = open ? '⌄' : '›';
+}
+
+function exportHashtagCSV() {
+  if (!_hashtagVideosData.length) { toast('Aucune donnée','error'); return; }
+  const rows = [['video_id','desc','created_at','plays','likes','comments','shares','collects','duration','music_title','hashtags','author_unique_id','author_name','author_followers','author_following','author_hearts','author_region','author_bio']];
+  for (const v of _hashtagVideosData) {
+    rows.push([v.video_id, (v.desc||'').replace(/,/g,' '), v.created_at, v.plays, v.likes, v.comments, v.shares, v.collects, v.duration, v.music_title, (v.hashtags||[]).join('|'), v.author_unique_id, v.author_name, v.author_followers, v.author_following, v.author_hearts, v.author_region, (v.author_bio||'').replace(/,/g,' ')]);
+  }
+  const csv  = rows.map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href=url; a.download=`tekkai_hashtag_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
 }
 
 function analyzeHashtagAuthors() {
