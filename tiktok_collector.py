@@ -341,19 +341,18 @@ class TikFlyCollector:
         videos: list[dict] = []
         last_error: Exception | None = None
 
-        # ── Stratégie 1 : search/general ─────────────────────────────────────
-        # search/general retourne un mix vidéos + comptes → on pagine jusqu'à
-        # avoir assez de vidéos, même si certaines pages ne contiennent que des comptes.
+        # ── Stratégie 1 : search/video ────────────────────────────────────────
+        # search/video retourne UNIQUEMENT des vidéos (pas de comptes mélangés)
         try:
             cursor      = 0
             search_id   = '0'
             pages       = 0
-            empty_pages = 0   # pages consécutives sans vidéo
-            max_pages   = 10  # large pour compenser le filtrage
+            empty_pages = 0
+            max_pages   = 10
 
             while len(videos) < max_videos and pages < max_pages:
                 params: dict = {'keyword': f'#{hashtag}', 'cursor': cursor, 'search_id': search_id}
-                data  = self._get('/api/search/general', params)
+                data  = self._get('/api/search/video', params)
                 batch = self._extract_videos_from_response(data)
                 videos.extend(batch)
 
@@ -364,7 +363,7 @@ class TikFlyCollector:
 
                 if not batch:
                     empty_pages += 1
-                    if empty_pages >= 3:  # 3 pages vides consécutives → stop
+                    if empty_pages >= 3:
                         break
                 else:
                     empty_pages = 0
@@ -373,12 +372,12 @@ class TikFlyCollector:
                     break
 
             if videos:
-                logger.info(f'[tikfly] search/general #{hashtag} → {len(videos)} vidéos en {pages} pages')
+                logger.info(f'[tikfly] search/video #{hashtag} → {len(videos)} vidéos en {pages} pages')
                 return videos[:max_videos]
 
         except Exception as e:
             last_error = e
-            logger.warning(f'[tikfly] search/general failed for #{hashtag}: {e}')
+            logger.warning(f'[tikfly] search/video failed for #{hashtag}: {e}')
 
         # ── Stratégie 2 : challenge/info → challenge/posts ────────────────────
         try:
