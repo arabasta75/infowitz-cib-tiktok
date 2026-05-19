@@ -295,52 +295,56 @@ class TikFlyCollector:
         return {'user': user, 'videos': videos}
 
 
-    def search_hashtag(self, hashtag: str, max_videos: int = 50) -> list[dict]:
-        """Vidéos d'un hashtag — retourne les vidéos normalisées avec auteur inclus."""
+    def get_challenge_id(self, hashtag: str) -> str:
+        """Résout un nom de hashtag en challengeId numérique via /api/challenge/info."""
         hashtag = hashtag.lstrip('#').strip()
+        data = self._get('/api/challenge/info', {'challengeName': hashtag}, use_cache=True)
+        info = (
+            data.get('challengeInfo')
+            or (data.get('data') or {}).get('challengeInfo')
+            or data.get('data') or {}
+        )
+        cid = (
+            info.get('id')
+            or info.get('challengeId')
+            or (info.get('challenge') or {}).get('id')
+            or (info.get('challenge') or {}).get('challengeId')
+            or ''
+        )
+        if not cid:
+            raise RuntimeError(f'challengeId introuvable pour #{hashtag} (réponse: {str(data)[:200]})')
+        return str(cid)
+
+    def search_hashtag(self, hashtag: str, max_videos: int = 50) -> list[dict]:
+        """
+        Vidéos d'un hashtag via TikFly.
+        Flux : /api/challenge/info (→ challengeId) → /api/challenge/posts (→ vidéos)
+        """
+        hashtag = hashtag.lstrip('#').strip()
+
+        # Étape 1 : résoudre le challengeId
+        challenge_id = self.get_challenge_id(hashtag)
+        logger.info(f'[tikfly] #{hashtag} → challengeId={challenge_id}')
+
+        # Étape 2 : récupérer les vidéos
         videos: list[dict] = []
-        cursor = None
+        cursor = '0'
         pages = 0
         max_pages = min(5, max(1, (max_videos // 20) + 1))
-        last_error = None
-
-        # TikFly supporte '/api/hashtag/posts' avec param 'name'
-        # Fallback: '/api/challenge/posts' avec param 'challengeName'
-        endpoint_variants = [
-            ('/api/hashtag/posts',   {'name': hashtag}),
-            ('/api/challenge/posts', {'challengeName': hashtag}),
-        ]
-        endpoint, base_params = endpoint_variants[0]
 
         while len(videos) < max_videos and pages < max_pages:
-            params: dict = dict(base_params)
-            params['count'] = 30
-            if cursor:
-                params['cursor'] = cursor
-
+            params: dict = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
             try:
-                data = self._get(endpoint, params)
+                data = self._get('/api/challenge/posts', params)
             except Exception as e:
-                last_error = e
-                # Essayer le second endpoint au premier échec
-                if pages == 0 and endpoint == endpoint_variants[0][0]:
-                    logger.warning(f'[tikfly] {endpoint} failed ({e}), trying fallback')
-                    endpoint, base_params = endpoint_variants[1]
-                    params = dict(base_params)
-                    params['count'] = 30
-                    try:
-                        data = self._get(endpoint, params)
-                        last_error = None
-                    except Exception as e2:
-                        last_error = e2
-                        break
-                else:
-                    logger.warning(f'[tikfly] hashtag p{pages}: {e}')
-                    break
+                logger.warning(f'[tikfly] challenge/posts p{pages}: {e}')
+                if pages == 0:
+                    raise RuntimeError(f'Erreur récupération posts #{hashtag}: {e}') from e
+                break
 
             raw_items = (
-                (data.get('data') or {}).get('itemList')
-                or data.get('itemList')
+                data.get('itemList')
+                or (data.get('data') or {}).get('itemList')
                 or data.get('items') or []
             )
             for item in raw_items:
@@ -351,14 +355,11 @@ class TikFlyCollector:
                     v['_author'] = normalize_tiktok_user(author_raw, author_stats)
                 videos.append(v)
 
-            has_more = (data.get('data') or {}).get('hasMore') or data.get('hasMore') or False
-            cursor   = (data.get('data') or {}).get('cursor') or data.get('cursor')
+            has_more = data.get('hasMore') or (data.get('data') or {}).get('hasMore') or False
+            cursor   = str(data.get('cursor') or (data.get('data') or {}).get('cursor') or '0')
             pages += 1
-            if not has_more or not cursor:
+            if not has_more or cursor == '0':
                 break
-
-        if not videos and last_error:
-            raise RuntimeError(f'Hashtag API error: {last_error}')
 
         return videos[:max_videos]
 
