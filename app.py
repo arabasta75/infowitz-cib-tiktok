@@ -588,7 +588,7 @@ def api_hashtag_videos():
     """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
     body     = request.get_json(silent=True) or {}
     hashtag  = (body.get('hashtag') or '').lstrip('#').strip()
-    max_vids = min(int(body.get('max_videos', 30)), 100)
+    max_vids = min(int(body.get('max_videos', 100)), 500)
     max_coms = min(int(body.get('max_comments', 20)), 50)
     if not hashtag:
         return jsonify({'error': 'hashtag requis'}), 400
