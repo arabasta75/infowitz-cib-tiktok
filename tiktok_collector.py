@@ -183,6 +183,7 @@ def normalize_tiktok_video(raw: dict) -> dict:
         'music_author':      music.get('authorName') or music.get('author') or '',
         'is_original_sound': bool(music.get('original') or False),
         'author_unique_id':  author.get('uniqueId') or author.get('unique_id') or '',
+        'share_url':         raw.get('shareUrl') or raw.get('share_url') or '',
         '_raw':              raw,
     }
 
@@ -341,27 +342,38 @@ class TikFlyCollector:
         last_error: Exception | None = None
 
         # ── Stratégie 1 : search/general ─────────────────────────────────────
+        # search/general retourne un mix vidéos + comptes → on pagine jusqu'à
+        # avoir assez de vidéos, même si certaines pages ne contiennent que des comptes.
         try:
-            cursor    = 0
-            search_id = '0'
-            pages     = 0
-            max_pages = min(5, max(1, (max_videos // 20) + 1))
+            cursor      = 0
+            search_id   = '0'
+            pages       = 0
+            empty_pages = 0   # pages consécutives sans vidéo
+            max_pages   = 10  # large pour compenser le filtrage
 
             while len(videos) < max_videos and pages < max_pages:
                 params: dict = {'keyword': f'#{hashtag}', 'cursor': cursor, 'search_id': search_id}
-                data     = self._get('/api/search/general', params)
-                batch    = self._extract_videos_from_response(data)
+                data  = self._get('/api/search/general', params)
+                batch = self._extract_videos_from_response(data)
                 videos.extend(batch)
 
                 cursor    = data.get('cursor') or 0
                 search_id = (data.get('log_pb') or {}).get('impr_id') or search_id
                 has_more  = data.get('has_more') or data.get('hasMore') or False
-                pages += 1
-                if not has_more or not batch:
+                pages    += 1
+
+                if not batch:
+                    empty_pages += 1
+                    if empty_pages >= 3:  # 3 pages vides consécutives → stop
+                        break
+                else:
+                    empty_pages = 0
+
+                if not has_more:
                     break
 
             if videos:
-                logger.info(f'[tikfly] search/general #{hashtag} → {len(videos)} vidéos')
+                logger.info(f'[tikfly] search/general #{hashtag} → {len(videos)} vidéos en {pages} pages')
                 return videos[:max_videos]
 
         except Exception as e:

@@ -635,6 +635,7 @@ function renderHashtagVideos(d) {
             ${v.collects ? `<span style="font-size:10px;color:var(--text3)">🔖 ${fmtNum(v.collects)}</span>` : ''}
             ${dur ? `<span style="font-size:10px;color:var(--text3)">⏱ ${dur}</span>` : ''}
             <span style="font-size:10px;color:var(--text3)">${date}</span>
+            ${v.tiktok_url ? `<a href="${escHtml(v.tiktok_url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--blue);text-decoration:none;border:1px solid rgba(56,189,248,.3);border-radius:3px;padding:1px 6px">↗ TikTok</a>` : ''}
           </div>
           ${v.music_title ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">🎵 ${escHtml(v.music_title.slice(0,50))}${v.music_author?' · '+escHtml(v.music_author.slice(0,30)):''}</div>` : ''}
         </div>

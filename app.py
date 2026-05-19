@@ -627,10 +627,15 @@ def api_hashtag_videos():
         if uid:
             author_ids.add(uid)
 
-        vid_id = v.get('video_id', '')
+        vid_id   = v.get('video_id', '')
+        tiktok_url = (
+            v.get('share_url')
+            or (f'https://www.tiktok.com/@{uid}/video/{vid_id}' if uid and vid_id else '')
+        )
         out.append({
             # Vidéo
             'video_id':          vid_id,
+            'tiktok_url':        tiktok_url,
             'desc':              v.get('desc', ''),
             'created_at':        v.get('created_at', ''),
             'create_ts':         v.get('create_ts', 0),
