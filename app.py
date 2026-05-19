@@ -670,12 +670,12 @@ def api_hashtag_videos():
             'comment_data':      comments_map.get(vid_id, []),
         })
 
-    _db.sh_insert(user_id='admin', keyword=f'#{hashtag}', mode='hashtag_videos',
+    _db.sh_insert(user_id='admin', keyword=query, mode='hashtag_videos',
                   account_count=len(author_ids))
 
     return jsonify({
         'ok':         True,
-        'hashtag':    hashtag,
+        'hashtag':    query,
         'videos':     out,
         'total':      len(out),
         'author_ids': list(author_ids),
