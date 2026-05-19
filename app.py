@@ -586,12 +586,15 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
 @login_required
 def api_hashtag_videos():
     """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
-    body     = request.get_json(silent=True) or {}
-    query    = (body.get('hashtag') or '').strip()
+    body  = request.get_json(silent=True) or {}
+    query = (body.get('hashtag') or '').strip().strip('"\'')
     max_vids = min(int(body.get('max_videos', 100)), 500)
     max_coms = min(int(body.get('max_comments', 20)), 50)
     if not query:
         return jsonify({'error': 'Requête vide'}), 400
+    # Hashtag : supprimer les espaces internes (#sarah halimi → #sarahhalimi)
+    if query.startswith('#'):
+        query = '#' + query[1:].replace(' ', '')
 
     cfg = get_cfg()
     collector = _tk.get_collector(cfg)
