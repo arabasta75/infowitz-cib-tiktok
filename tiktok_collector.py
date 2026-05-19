@@ -318,12 +318,15 @@ class TikFlyCollector:
             or data.get('item_list')
             or data.get('items') or []
         )
+        ht_lower = hashtag_filter.lower() if hashtag_filter else ''
         videos = []
         for item in raw_items:
-            # Ignorer les items sans vidéo (résultats user dans search/general)
             if not item.get('id') and not item.get('aweme_id'):
                 continue
             v = normalize_tiktok_video(item)
+            # Post-filtre strict : on rejette les vidéos qui ne contiennent pas le hashtag cherché
+            if ht_lower and ht_lower not in [h.lower() for h in v['hashtags']]:
+                continue
             author_raw   = item.get('author') or {}
             author_stats = item.get('authorStats') or item.get('stats') or {}
             if author_raw:
@@ -353,7 +356,7 @@ class TikFlyCollector:
             while len(videos) < max_videos and pages < max_pages:
                 params: dict = {'keyword': f'#{hashtag}', 'cursor': cursor, 'search_id': search_id}
                 data  = self._get('/api/search/video', params)
-                batch = self._extract_videos_from_response(data)
+                batch = self._extract_videos_from_response(data, hashtag_filter=hashtag)
                 videos.extend(batch)
 
                 cursor    = data.get('cursor') or 0
@@ -401,7 +404,7 @@ class TikFlyCollector:
             while len(videos) < max_videos and pages < 5:
                 params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
                 data   = self._get('/api/challenge/posts', params)
-                batch  = self._extract_videos_from_response(data)
+                batch  = self._extract_videos_from_response(data, hashtag_filter=hashtag)
                 videos.extend(batch)
 
                 has_more = data.get('hasMore') or (data.get('data') or {}).get('hasMore') or False
