@@ -216,11 +216,24 @@ def api_config():
     u = get_current_user()
     if request.method == 'GET':
         cfg = dict(u.get('config', {}))
+        # Inclure les clés provenant des variables d'environnement
+        env_map = [
+            ('tikfly_key', 'TIKFLY_KEY'), ('rapidapi_key', 'RAPIDAPI_KEY'),
+            ('groq_key', 'GROQ_API_KEY'), ('openai_key', 'OPENAI_API_KEY'),
+            ('mistral_key', 'MISTRAL_API_KEY'), ('gemini_key', 'GEMINI_API_KEY'),
+        ]
+        sources = {}
+        for k, env in env_map:
+            if not cfg.get(k) and os.environ.get(env):
+                cfg[k] = os.environ[env]
+                sources[k] = 'env'
+            elif cfg.get(k):
+                sources[k] = 'user'
         for k in ('tikfly_key', 'rapidapi_key', 'groq_key', 'openai_key', 'mistral_key', 'gemini_key'):
             if cfg.get(k):
                 v = str(cfg[k])
                 cfg[k] = v[:6] + '***' + v[-4:] if len(v) > 10 else '***'
-        return jsonify({'ok': True, 'config': cfg})
+        return jsonify({'ok': True, 'config': cfg, 'sources': sources})
     body = request.get_json(silent=True) or {}
     allowed = {'tikfly_key', 'rapidapi_key', 'groq_key', 'openai_key',
                'mistral_key', 'gemini_key', 'llm_model', 'max_videos'}

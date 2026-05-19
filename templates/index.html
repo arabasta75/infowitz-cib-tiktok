@@ -370,11 +370,12 @@
       <div class="tab-pane" id="tab-config">
         <div class="config-form">
           <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">Configuration</h3>
-          <p style="color:var(--text2);font-size:12px;margin-bottom:20px">Clés API stockées localement par utilisateur.</p>
+          <p style="color:var(--text2);font-size:12px;margin-bottom:12px">Clés API stockées par session. Pour une persistance permanente, définissez les variables d'environnement dans Railway (ex. <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">TIKFLY_KEY</code>).</p>
+          <div id="cfg-env-notice" style="display:none;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:16px"></div>
 
           <label>TikFly API Key (RapidAPI — tiktok-api23.p.rapidapi.com)</label>
           <input id="cfg-tikfly" type="password" placeholder="Entrez votre clé RapidAPI / TikFly">
-          <div class="config-note">Obligatoire pour scraper des comptes TikTok.</div>
+          <div class="config-note" id="cfg-tikfly-note">Obligatoire pour scraper des comptes TikTok.</div>
 
           <label style="margin-top:20px">LLM — Groq API Key (analyse approfondie)</label>
           <input id="cfg-groq" type="password" placeholder="gsk_…">
@@ -923,13 +924,26 @@ async function loadConfig() {
   const r = await fetch('/api/config', {credentials:'include'});
   const d = await r.json();
   if (!d.ok) return;
-  const cfg = d.config;
+  const cfg     = d.config;
+  const sources = d.sources || {};
+
   if (cfg.tikfly_key)  document.getElementById('cfg-tikfly').placeholder  = cfg.tikfly_key;
   if (cfg.groq_key)    document.getElementById('cfg-groq').placeholder    = cfg.groq_key;
   if (cfg.openai_key)  document.getElementById('cfg-openai').placeholder  = cfg.openai_key;
   if (cfg.mistral_key) document.getElementById('cfg-mistral').placeholder = cfg.mistral_key;
   if (cfg.gemini_key)  document.getElementById('cfg-gemini').placeholder  = cfg.gemini_key;
   if (cfg.max_videos)  document.getElementById('cfg-maxvid').value        = cfg.max_videos;
+
+  // Afficher les clés chargées depuis les variables d'environnement
+  const envKeys = Object.entries(sources).filter(([,v]) => v === 'env').map(([k]) => k);
+  const notice  = document.getElementById('cfg-env-notice');
+  if (envKeys.length && notice) {
+    const labels = {'tikfly_key':'TIKFLY_KEY','rapidapi_key':'RAPIDAPI_KEY','groq_key':'GROQ_API_KEY','openai_key':'OPENAI_API_KEY','mistral_key':'MISTRAL_API_KEY','gemini_key':'GEMINI_API_KEY'};
+    notice.innerHTML = '✓ Clés chargées depuis les variables Railway : ' + envKeys.map(k=>`<code style="background:rgba(56,189,248,.15);padding:1px 5px;border-radius:3px">${labels[k]||k}</code>`).join(' ');
+    notice.style.display = 'block';
+    // Marquer les inputs correspondants
+    if (sources.tikfly_key === 'env') document.getElementById('cfg-tikfly-note').textContent = '✓ Clé active via variable d\'environnement TIKFLY_KEY (persistante)';
+  }
 }
 async function saveConfig() {
   const body = {};
