@@ -154,6 +154,7 @@ def get_cfg() -> dict:
     base = u.get('config', {}) if u else {}
     # Fallback env vars
     for k, env in [('tikfly_key', 'TIKFLY_KEY'), ('rapidapi_key', 'RAPIDAPI_KEY'),
+                   ('ensembledata_key', 'ENSEMBLEDATA_KEY'),
                    ('groq_key', 'GROQ_API_KEY'), ('openai_key', 'OPENAI_API_KEY'),
                    ('mistral_key', 'MISTRAL_API_KEY'), ('gemini_key', 'GEMINI_API_KEY')]:
         if not base.get(k) and os.environ.get(env):
@@ -219,6 +220,7 @@ def api_config():
         # Inclure les clés provenant des variables d'environnement
         env_map = [
             ('tikfly_key', 'TIKFLY_KEY'), ('rapidapi_key', 'RAPIDAPI_KEY'),
+            ('ensembledata_key', 'ENSEMBLEDATA_KEY'),
             ('groq_key', 'GROQ_API_KEY'), ('openai_key', 'OPENAI_API_KEY'),
             ('mistral_key', 'MISTRAL_API_KEY'), ('gemini_key', 'GEMINI_API_KEY'),
         ]
@@ -229,13 +231,13 @@ def api_config():
                 sources[k] = 'env'
             elif cfg.get(k):
                 sources[k] = 'user'
-        for k in ('tikfly_key', 'rapidapi_key', 'groq_key', 'openai_key', 'mistral_key', 'gemini_key'):
+        for k in ('tikfly_key', 'rapidapi_key', 'ensembledata_key', 'groq_key', 'openai_key', 'mistral_key', 'gemini_key'):
             if cfg.get(k):
                 v = str(cfg[k])
                 cfg[k] = v[:6] + '***' + v[-4:] if len(v) > 10 else '***'
         return jsonify({'ok': True, 'config': cfg, 'sources': sources})
     body = request.get_json(silent=True) or {}
-    allowed = {'tikfly_key', 'rapidapi_key', 'groq_key', 'openai_key',
+    allowed = {'tikfly_key', 'rapidapi_key', 'ensembledata_key', 'groq_key', 'openai_key',
                'mistral_key', 'gemini_key', 'llm_model', 'max_videos'}
     current = u.get('config', {})
     for k, v in body.items():
@@ -588,10 +590,11 @@ def api_hashtag_videos():
     """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
     body  = request.get_json(silent=True) or {}
     query = (body.get('hashtag') or '').strip().strip('"\'')
+    source       = (body.get('source') or 'tikfly').lower()
     max_vids     = min(int(body.get('max_videos', 100)), 500)
     max_coms     = min(int(body.get('max_comments', 20)), 50)
     publish_time = int(body.get('publish_time', 0))
-    date_from    = (body.get('date_from') or '').strip()   # 'YYYY-MM-DD'
+    date_from    = (body.get('date_from') or '').strip()
     date_to      = (body.get('date_to')   or '').strip()
 
     if not query:
@@ -599,52 +602,61 @@ def api_hashtag_videos():
     if query.startswith('#'):
         query = '#' + query[1:].replace(' ', '')
 
-    # Convertir date_from/date_to en timestamps pour post-filtre
+    # Timestamps pour filtres
     ts_from: int | None = None
     ts_to:   int | None = None
-    if date_from:
-        try:
-            from datetime import datetime, timezone
-            ts_from = int(datetime.strptime(date_from, '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp())
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            from datetime import datetime, timezone
-            ts_to = int(datetime.strptime(date_to, '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp()) + 86399
-        except ValueError:
-            pass
+    for val, attr in [(date_from, 'ts_from'), (date_to, 'ts_to')]:
+        if val:
+            try:
+                ts = int(datetime.strptime(val, '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp())
+                if attr == 'ts_from': ts_from = ts
+                else: ts_to = ts + 86399
+            except ValueError:
+                pass
 
     cfg = get_cfg()
-    collector = _tk.get_collector(cfg)
-    if not collector:
-        return jsonify({'error': 'Aucune clé TikFly configurée'}), 400
 
-    try:
-        videos = collector.search_videos(query, max_videos=max_vids, publish_time=publish_time)
-    except Exception as e:
-        return jsonify({'error': f'Erreur API: {_safe_err(e, 200)}'}), 500
-
-    # Post-filtre date personnalisée
-    if ts_from or ts_to:
-        videos = [v for v in videos if
-                  (not ts_from or v.get('create_ts', 0) >= ts_from) and
-                  (not ts_to   or v.get('create_ts', 0) <= ts_to)]
-
-    # Fetch commentaires en parallèle
-    def _fetch_coms(vid_id):
+    # ── Routage vers la source choisie ────────────────────────────────────────
+    if source == 'ensembledata':
+        ecollector = _tk.get_ensemble_collector(cfg)
+        if not ecollector:
+            return jsonify({'error': 'Aucune clé EnsembleData configurée'}), 400
         try:
-            return vid_id, collector.get_video_comments(vid_id, max_comments=max_coms)
+            videos = ecollector.search_videos(query, max_videos=max_vids,
+                                              oldest_createtime=ts_from)
         except Exception as e:
-            logger.warning(f'[hashtag/coms] {vid_id}: {e}')
-            return vid_id, []
+            return jsonify({'error': f'Erreur EnsembleData: {_safe_err(e, 200)}'}), 500
+        # Post-filtre ts_to
+        if ts_to:
+            videos = [v for v in videos if v.get('create_ts', 0) <= ts_to]
+        # EnsembleData ne supporte pas les commentaires via la même API
+        comments_map: dict = {}
+    else:
+        collector = _tk.get_collector(cfg)
+        if not collector:
+            return jsonify({'error': 'Aucune clé TikFly configurée'}), 400
+        try:
+            videos = collector.search_videos(query, max_videos=max_vids, publish_time=publish_time)
+        except Exception as e:
+            return jsonify({'error': f'Erreur TikFly: {_safe_err(e, 200)}'}), 500
+        if ts_from or ts_to:
+            videos = [v for v in videos if
+                      (not ts_from or v.get('create_ts', 0) >= ts_from) and
+                      (not ts_to   or v.get('create_ts', 0) <= ts_to)]
 
-    vid_ids = [v['video_id'] for v in videos if v.get('video_id')]
-    comments_map: dict[str, list] = {}
-    if vid_ids:
-        with ThreadPoolExecutor(max_workers=6) as ex:
-            for vid_id, coms in ex.map(_fetch_coms, vid_ids):
-                comments_map[vid_id] = coms
+    # Fetch commentaires en parallèle (TikFly uniquement)
+    if source != 'ensembledata':
+        def _fetch_coms(vid_id):
+            try:
+                return vid_id, collector.get_video_comments(vid_id, max_comments=max_coms)
+            except Exception as e:
+                logger.warning(f'[hashtag/coms] {vid_id}: {e}')
+                return vid_id, []
+        vid_ids = [v['video_id'] for v in videos if v.get('video_id')]
+        if vid_ids:
+            with ThreadPoolExecutor(max_workers=6) as ex:
+                for vid_id, coms in ex.map(_fetch_coms, vid_ids):
+                    comments_map[vid_id] = coms
 
     # Sérialiser
     out = []

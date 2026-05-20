@@ -509,6 +509,178 @@ class TikFlyCollector:
             return []
 
 
+# ─── EnsembleData Collector ───────────────────────────────────────────────────
+
+class EnsembleDataCollector:
+    """
+    Collecteur EnsembleData : ensembledata.com/apis
+    Avantage vs TikFly : données historiques jusqu'en 2020, oldest_createtime arbitraire.
+    """
+
+    BASE_URL  = 'https://ensembledata.com/apis'
+    CACHE_TTL = 3600 * 6
+    TIMEOUT   = 30
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.session = requests.Session()
+
+    def _get(self, endpoint: str, params: dict, use_cache: bool = True) -> dict:
+        params = {**params, 'token': self.api_key}
+        key = _cache_key('ED:' + endpoint, params)
+        if use_cache:
+            cached = _cache_get(key, self.CACHE_TTL)
+            if cached is not None:
+                logger.info(f'[ensemble] cache hit → {endpoint}')
+                return cached
+        url = f'{self.BASE_URL}{endpoint}'
+        logger.info(f'[ensemble] GET {endpoint} {params}')
+        try:
+            resp = self.session.get(url, params=params, timeout=self.TIMEOUT)
+            resp.raise_for_status()
+            if not resp.text or not resp.text.strip():
+                raise RuntimeError(f'Réponse vide (HTTP {resp.status_code})')
+            data = resp.json()
+            if use_cache:
+                _cache_set(key, data)
+            return data
+        except requests.HTTPError as e:
+            body = resp.text[:300] if resp.text else '(vide)'
+            raise RuntimeError(f'HTTP {resp.status_code}: {body}') from e
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f'Erreur réseau: {e}') from e
+
+    def _normalize_video(self, raw: dict) -> dict:
+        """Normalise un objet vidéo EnsembleData vers le format Tekkai."""
+        def _int(v):
+            try: return int(v or 0)
+            except (ValueError, TypeError): return 0
+
+        stats  = raw.get('statistics') or raw.get('stats') or {}
+        author = raw.get('author') or {}
+        music  = raw.get('music') or {}
+        video  = raw.get('video') or {}
+        desc   = raw.get('desc') or raw.get('description') or ''
+
+        # Hashtags depuis cha_list (EnsembleData) ou regex sur desc
+        cha_list = raw.get('cha_list') or raw.get('challenges') or []
+        hashtags = [c.get('cha_name') or c.get('title') or '' for c in cha_list if c.get('cha_name') or c.get('title')]
+        if not hashtags:
+            hashtags = re.findall(r'#([A-Za-zÀ-ÿ0-9_]{2,})', desc)
+
+        create_ts = _int(raw.get('create_time') or raw.get('createTime') or 0)
+        created_at = ''
+        if create_ts > 0:
+            try:
+                created_at = datetime.fromtimestamp(create_ts, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            except Exception:
+                pass
+
+        # Cover
+        cover_obj = video.get('cover') or video.get('origin_cover') or {}
+        cover = (cover_obj.get('url_list') or [None])[0] or ''
+
+        # Avatar auteur
+        avatar_obj = author.get('avatar_thumb') or author.get('avatar_medium') or {}
+        avatar = (avatar_obj.get('url_list') or [None])[0] or ''
+
+        vid_id = raw.get('aweme_id') or raw.get('id') or ''
+        uid    = author.get('unique_id') or author.get('uniqueId') or ''
+
+        author_norm = normalize_tiktok_user(
+            {
+                'uniqueId':      uid,
+                'nickname':      author.get('nickname') or '',
+                'signature':     author.get('signature') or '',
+                'verified':      author.get('custom_verify') or author.get('verified') or False,
+                'region':        author.get('region') or '',
+                'privateAccount': author.get('secret') or False,
+                'avatarThumb':   avatar,
+            },
+            {
+                'followerCount': author.get('follower_count') or 0,
+                'followingCount': author.get('following_count') or 0,
+                'heartCount':    author.get('total_favorited') or 0,
+                'videoCount':    author.get('aweme_count') or 0,
+            }
+        )
+
+        return {
+            'video_id':          vid_id,
+            'desc':              desc,
+            'created_at':        created_at,
+            'create_ts':         create_ts,
+            'plays':             _int(stats.get('play_count') or stats.get('playCount') or 0),
+            'likes':             _int(stats.get('digg_count') or stats.get('diggCount') or 0),
+            'comments':          _int(stats.get('comment_count') or stats.get('commentCount') or 0),
+            'shares':            _int(stats.get('share_count') or stats.get('shareCount') or 0),
+            'collects':          _int(stats.get('collect_count') or stats.get('collectCount') or 0),
+            'duration':          _int((video.get('duration') or 0)),
+            'cover':             cover,
+            'share_url':         raw.get('share_url') or (f'https://www.tiktok.com/@{uid}/video/{vid_id}' if uid and vid_id else ''),
+            'hashtags':          hashtags,
+            'music_id':          str(music.get('id') or ''),
+            'music_title':       music.get('title') or '',
+            'music_author':      music.get('author') or '',
+            'is_original_sound': bool(music.get('original') or False),
+            'author_unique_id':  uid,
+            '_author':           author_norm,
+            '_raw':              raw,
+        }
+
+    def search_videos(self, query: str, max_videos: int = 200,
+                      oldest_createtime: int | None = None) -> list[dict]:
+        """
+        Recherche hashtag ou mot-clé.
+        - query commence par # → /tt/hashtag/posts
+        - sinon → /tt/keyword/search
+        oldest_createtime : timestamp Unix plancher (stop pagination)
+        """
+        query      = query.strip()
+        is_hashtag = query.startswith('#')
+        keyword    = query.lstrip('#').strip()
+        videos: list[dict] = []
+
+        endpoint = '/tt/hashtag/posts' if is_hashtag else '/tt/keyword/search'
+        cursor   = 0
+        pages    = 0
+        max_pages = max(10, (max_videos // 20) + 2)
+
+        while len(videos) < max_videos and pages < max_pages:
+            params: dict = {'name': keyword, 'cursor': cursor}
+            if oldest_createtime:
+                params['oldest_createtime'] = oldest_createtime
+
+            data = self._get(endpoint, params)
+            inner = data.get('data') or {}
+            raw_items = inner.get('data') or inner.get('item_list') or []
+            next_cursor = inner.get('nextCursor')
+
+            for item in raw_items:
+                v = self._normalize_video(item)
+                videos.append(v)
+
+            if not raw_items or not next_cursor:
+                break
+
+            # Stopper si la page la plus ancienne est avant oldest_createtime
+            if oldest_createtime:
+                page_oldest = min((v.get('create_ts', 9999999999) for v in videos[-len(raw_items):]), default=9999999999)
+                if page_oldest < oldest_createtime:
+                    break
+
+            cursor = next_cursor
+            pages += 1
+
+        if not videos:
+            raise RuntimeError(f'Aucun résultat pour « {query} »')
+
+        logger.info(f'[ensemble] {query} → {len(videos)} vidéos en {pages+1} pages')
+        return videos[:max_videos]
+
+
 # ─── DISPATCHER ───────────────────────────────────────────────────────────────
 
 def get_collector(user_cfg: dict) -> TikFlyCollector | None:
@@ -516,6 +688,14 @@ def get_collector(user_cfg: dict) -> TikFlyCollector | None:
            or os.environ.get('TIKFLY_KEY') or os.environ.get('RAPIDAPI_KEY') or '').strip()
     if key:
         return TikFlyCollector(key)
+    return None
+
+
+def get_ensemble_collector(user_cfg: dict) -> EnsembleDataCollector | None:
+    key = (user_cfg.get('ensembledata_key')
+           or os.environ.get('ENSEMBLEDATA_KEY') or '').strip()
+    if key:
+        return EnsembleDataCollector(key)
     return None
 
 

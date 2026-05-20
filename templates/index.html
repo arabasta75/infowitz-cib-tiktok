@@ -30,6 +30,9 @@
   .period-btn{background:var(--bg2);color:var(--text2);border:1px solid var(--border);border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer}
   .period-btn:hover{border-color:var(--accent);color:var(--text1)}
   .period-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .src-btn{background:var(--bg2);color:var(--text2);border:none;padding:4px 11px;font-size:11px;cursor:pointer;font-weight:500}
+  .src-btn:hover{background:var(--bg3,#2a2a2a);color:var(--text1)}
+  .src-btn.active{background:var(--accent);color:#fff}
 
   /* ── Login ── */
   #login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999}
@@ -295,25 +298,40 @@
           <div class="search-bar">
             <h3>Recherche de publications</h3>
             <div class="hashtag-row">
-              <input id="hashtag-input" type="text" placeholder="#hashtag  ou  mot-clé libre" style="max-width:280px">
+              <input id="hashtag-input" type="text" placeholder="#hashtag  ou  mot-clé libre" style="max-width:260px">
               <input id="hashtag-maxvid" type="number" value="100" min="10" max="500" title="Max vidéos">
               <span style="color:var(--text3);font-size:11px">vidéos max</span>
+              <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:5px;overflow:hidden">
+                <button id="src-tikfly" class="src-btn active" onclick="setSource('tikfly')">TikFly</button>
+                <button id="src-ensemble" class="src-btn" onclick="setSource('ensembledata')">EnsembleData</button>
+              </div>
               <button class="btn-primary" id="hashtag-btn" onclick="fetchHashtagVideos()">▶ Scraper</button>
             </div>
             <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span style="color:var(--text3);font-size:11px">Période :</span>
-              <div style="display:flex;gap:4px;flex-wrap:wrap" id="period-btns">
-                <button class="period-btn active" data-pt="0"   onclick="setPeriod(this,0)">Tout</button>
-                <button class="period-btn"        data-pt="7"   onclick="setPeriod(this,7)">7 jours</button>
-                <button class="period-btn"        data-pt="30"  onclick="setPeriod(this,30)">30 jours</button>
-                <button class="period-btn"        data-pt="90"  onclick="setPeriod(this,90)">3 mois</button>
-                <button class="period-btn"        data-pt="180" onclick="setPeriod(this,180)">6 mois</button>
-                <button class="period-btn"        data-pt="-1"  onclick="setPeriod(this,-1)">Perso…</button>
+              <!-- TikFly : presets -->
+              <div id="period-tikfly" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+                <div style="display:flex;gap:4px;flex-wrap:wrap" id="period-btns">
+                  <button class="period-btn active" data-pt="0"   onclick="setPeriod(this,0)">Tout</button>
+                  <button class="period-btn"        data-pt="7"   onclick="setPeriod(this,7)">7 jours</button>
+                  <button class="period-btn"        data-pt="30"  onclick="setPeriod(this,30)">30 jours</button>
+                  <button class="period-btn"        data-pt="90"  onclick="setPeriod(this,90)">3 mois</button>
+                  <button class="period-btn"        data-pt="180" onclick="setPeriod(this,180)">6 mois</button>
+                  <button class="period-btn"        data-pt="-1"  onclick="setPeriod(this,-1)">Perso…</button>
+                </div>
+                <div id="custom-dates" style="display:none;gap:6px;align-items:center">
+                  <input type="date" id="date-from" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1)">
+                  <span style="color:var(--text3);font-size:11px">→</span>
+                  <input type="date" id="date-to" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1)">
+                </div>
               </div>
-              <div id="custom-dates" style="display:none;gap:6px;align-items:center;display:none">
-                <input type="date" id="date-from" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1)">
-                <span style="color:var(--text3);font-size:11px">→</span>
-                <input type="date" id="date-to" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1)">
+              <!-- EnsembleData : date plancher -->
+              <div id="period-ensemble" style="display:none;gap:6px;align-items:center">
+                <span style="color:var(--text3);font-size:11px">Depuis le</span>
+                <input type="date" id="ensemble-date-from" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1)">
+                <span style="color:var(--text3);font-size:11px">jusqu'au</span>
+                <input type="date" id="ensemble-date-to" style="font-size:11px;padding:2px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1)">
+                <span style="color:var(--text3);font-size:10px">(vide = pas de limite)</span>
               </div>
             </div>
             <div style="margin-top:6px;color:var(--text3);font-size:11px">
@@ -409,6 +427,10 @@
           <label>TikFly API Key (RapidAPI — tiktok-api23.p.rapidapi.com)</label>
           <input id="cfg-tikfly" type="password" placeholder="Entrez votre clé RapidAPI / TikFly">
           <div class="config-note" id="cfg-tikfly-note">Obligatoire pour scraper des comptes TikTok.</div>
+
+          <label style="margin-top:20px">EnsembleData API Key — données historiques (2020+)</label>
+          <input id="cfg-ensemble" type="password" placeholder="Clé EnsembleData (ensembledata.com)">
+          <div class="config-note" id="cfg-ensemble-note">Permet la recherche par date arbitraire et les données historiques depuis 2020.</div>
 
           <label style="margin-top:20px">LLM — Groq API Key (analyse approfondie)</label>
           <input id="cfg-groq" type="password" placeholder="gsk_…">
@@ -572,6 +594,17 @@ function startAnalysis() {
   _launchJob('/api/analyze', {handles});
 }
 
+// ── Hashtag : source ──────────────────────────────────────────────────────────
+let _source = 'tikfly';
+function setSource(src) {
+  _source = src;
+  document.getElementById('src-tikfly').classList.toggle('active', src === 'tikfly');
+  document.getElementById('src-ensemble').classList.toggle('active', src === 'ensembledata');
+  // TikFly → presets période ; EnsembleData → date "depuis le"
+  document.getElementById('period-tikfly').style.display  = src === 'tikfly' ? 'flex' : 'none';
+  document.getElementById('period-ensemble').style.display = src === 'ensembledata' ? 'flex' : 'none';
+}
+
 // ── Hashtag : période ─────────────────────────────────────────────────────────
 let _publishTime = 0;
 function setPeriod(btn, pt) {
@@ -588,11 +621,17 @@ async function fetchHashtagVideos() {
   if (!ht) { toast('Entrez un hashtag ou un mot-clé', 'error'); return; }
   const maxVid = parseInt(document.getElementById('hashtag-maxvid').value) || 100;
 
-  const body = {hashtag: ht, max_videos: maxVid, publish_time: _publishTime};
-  if (_publishTime === -1) {
-    body.date_from = document.getElementById('date-from').value;
-    body.date_to   = document.getElementById('date-to').value;
-    body.publish_time = 0;
+  const body = {hashtag: ht, max_videos: maxVid, source: _source};
+  if (_source === 'ensembledata') {
+    body.date_from = document.getElementById('ensemble-date-from').value;
+    body.date_to   = document.getElementById('ensemble-date-to').value;
+  } else {
+    body.publish_time = _publishTime;
+    if (_publishTime === -1) {
+      body.date_from    = document.getElementById('date-from').value;
+      body.date_to      = document.getElementById('date-to').value;
+      body.publish_time = 0;
+    }
   }
 
   const btn = document.getElementById('hashtag-btn');
@@ -1117,28 +1156,29 @@ async function loadConfig() {
   const cfg     = d.config;
   const sources = d.sources || {};
 
-  if (cfg.tikfly_key)  document.getElementById('cfg-tikfly').placeholder  = cfg.tikfly_key;
-  if (cfg.groq_key)    document.getElementById('cfg-groq').placeholder    = cfg.groq_key;
-  if (cfg.openai_key)  document.getElementById('cfg-openai').placeholder  = cfg.openai_key;
-  if (cfg.mistral_key) document.getElementById('cfg-mistral').placeholder = cfg.mistral_key;
-  if (cfg.gemini_key)  document.getElementById('cfg-gemini').placeholder  = cfg.gemini_key;
-  if (cfg.max_videos)  document.getElementById('cfg-maxvid').value        = cfg.max_videos;
+  if (cfg.tikfly_key)       document.getElementById('cfg-tikfly').placeholder   = cfg.tikfly_key;
+  if (cfg.ensembledata_key) document.getElementById('cfg-ensemble').placeholder = cfg.ensembledata_key;
+  if (cfg.groq_key)         document.getElementById('cfg-groq').placeholder     = cfg.groq_key;
+  if (cfg.openai_key)       document.getElementById('cfg-openai').placeholder   = cfg.openai_key;
+  if (cfg.mistral_key)      document.getElementById('cfg-mistral').placeholder  = cfg.mistral_key;
+  if (cfg.gemini_key)       document.getElementById('cfg-gemini').placeholder   = cfg.gemini_key;
+  if (cfg.max_videos)       document.getElementById('cfg-maxvid').value         = cfg.max_videos;
 
-  // Afficher les clés chargées depuis les variables d'environnement
   const envKeys = Object.entries(sources).filter(([,v]) => v === 'env').map(([k]) => k);
   const notice  = document.getElementById('cfg-env-notice');
   if (envKeys.length && notice) {
-    const labels = {'tikfly_key':'TIKFLY_KEY','rapidapi_key':'RAPIDAPI_KEY','groq_key':'GROQ_API_KEY','openai_key':'OPENAI_API_KEY','mistral_key':'MISTRAL_API_KEY','gemini_key':'GEMINI_API_KEY'};
+    const labels = {'tikfly_key':'TIKFLY_KEY','rapidapi_key':'RAPIDAPI_KEY','ensembledata_key':'ENSEMBLEDATA_KEY','groq_key':'GROQ_API_KEY','openai_key':'OPENAI_API_KEY','mistral_key':'MISTRAL_API_KEY','gemini_key':'GEMINI_API_KEY'};
     notice.innerHTML = '✓ Clés chargées depuis les variables Railway : ' + envKeys.map(k=>`<code style="background:rgba(56,189,248,.15);padding:1px 5px;border-radius:3px">${labels[k]||k}</code>`).join(' ');
     notice.style.display = 'block';
-    // Marquer les inputs correspondants
-    if (sources.tikfly_key === 'env') document.getElementById('cfg-tikfly-note').textContent = '✓ Clé active via variable d\'environnement TIKFLY_KEY (persistante)';
+    if (sources.tikfly_key       === 'env') document.getElementById('cfg-tikfly-note').textContent  = '✓ Clé active via variable d\'environnement TIKFLY_KEY (persistante)';
+    if (sources.ensembledata_key === 'env') document.getElementById('cfg-ensemble-note').textContent = '✓ Clé active via variable d\'environnement ENSEMBLEDATA_KEY (persistante)';
   }
 }
 async function saveConfig() {
   const body = {};
   const fields = [
-    ['tikfly_key','cfg-tikfly'],['groq_key','cfg-groq'],['openai_key','cfg-openai'],
+    ['tikfly_key','cfg-tikfly'],['ensembledata_key','cfg-ensemble'],
+    ['groq_key','cfg-groq'],['openai_key','cfg-openai'],
     ['mistral_key','cfg-mistral'],['gemini_key','cfg-gemini'],['max_videos','cfg-maxvid'],
   ];
   for (const [k, id] of fields) {
