@@ -346,7 +346,7 @@ class TikFlyCollector:
                     return str(ch['id'])
         return None
 
-    def search_videos(self, query: str, max_videos: int = 100) -> list[dict]:
+    def search_videos(self, query: str, max_videos: int = 100, publish_time: int = 0) -> list[dict]:
         """
         Recherche de vidéos par mot-clé ou hashtag.
         - Si query commence par # → flow hashtag : seed search/video → challengeId → challenge/posts
@@ -363,7 +363,7 @@ class TikFlyCollector:
             challenge_id: str | None = None
             seed_items: list[dict] = []
             try:
-                data = self._get('/api/search/video', {'keyword': f'#{keyword}', 'cursor': 0, 'search_id': '0'})
+                data = self._get('/api/search/video', {'keyword': f'#{keyword}', 'cursor': 0, 'search_id': '0', 'publish_time': publish_time})
                 seed_items = data.get('item_list') or data.get('itemList') or []
                 challenge_id = self._extract_challenge_id(keyword, seed_items)
                 logger.info(f'[tikfly] #{keyword} challengeId={challenge_id}')
@@ -378,7 +378,7 @@ class TikFlyCollector:
                     max_pages = max(5, (max_videos // 30) + 2)
 
                     while len(videos) < max_videos and pages < max_pages:
-                        params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor}
+                        params = {'challengeId': challenge_id, 'count': 30, 'cursor': cursor, 'publish_time': publish_time}
                         data   = self._get('/api/challenge/posts', params)
                         batch  = self._extract_videos_from_response(data)
                         videos.extend(batch)
@@ -406,7 +406,7 @@ class TikFlyCollector:
             empty_pages = 0
 
             while len(videos) < max_videos and pages < 10:
-                params: dict = {'keyword': api_keyword, 'cursor': cursor, 'search_id': search_id}
+                params: dict = {'keyword': api_keyword, 'cursor': cursor, 'search_id': search_id, 'publish_time': publish_time}
                 data  = self._get('/api/search/video', params)
                 ht_filter = keyword if is_hashtag else ''
                 batch = self._extract_videos_from_response(data, hashtag_filter=ht_filter)

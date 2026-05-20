@@ -588,13 +588,32 @@ def api_hashtag_videos():
     """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
     body  = request.get_json(silent=True) or {}
     query = (body.get('hashtag') or '').strip().strip('"\'')
-    max_vids = min(int(body.get('max_videos', 100)), 500)
-    max_coms = min(int(body.get('max_comments', 20)), 50)
+    max_vids     = min(int(body.get('max_videos', 100)), 500)
+    max_coms     = min(int(body.get('max_comments', 20)), 50)
+    publish_time = int(body.get('publish_time', 0))
+    date_from    = (body.get('date_from') or '').strip()   # 'YYYY-MM-DD'
+    date_to      = (body.get('date_to')   or '').strip()
+
     if not query:
         return jsonify({'error': 'Requête vide'}), 400
-    # Hashtag : supprimer les espaces internes (#sarah halimi → #sarahhalimi)
     if query.startswith('#'):
         query = '#' + query[1:].replace(' ', '')
+
+    # Convertir date_from/date_to en timestamps pour post-filtre
+    ts_from: int | None = None
+    ts_to:   int | None = None
+    if date_from:
+        try:
+            from datetime import datetime, timezone
+            ts_from = int(datetime.strptime(date_from, '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime, timezone
+            ts_to = int(datetime.strptime(date_to, '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp()) + 86399
+        except ValueError:
+            pass
 
     cfg = get_cfg()
     collector = _tk.get_collector(cfg)
@@ -602,9 +621,15 @@ def api_hashtag_videos():
         return jsonify({'error': 'Aucune clé TikFly configurée'}), 400
 
     try:
-        videos = collector.search_videos(query, max_videos=max_vids)
+        videos = collector.search_videos(query, max_videos=max_vids, publish_time=publish_time)
     except Exception as e:
         return jsonify({'error': f'Erreur API: {_safe_err(e, 200)}'}), 500
+
+    # Post-filtre date personnalisée
+    if ts_from or ts_to:
+        videos = [v for v in videos if
+                  (not ts_from or v.get('create_ts', 0) >= ts_from) and
+                  (not ts_to   or v.get('create_ts', 0) <= ts_to)]
 
     # Fetch commentaires en parallèle
     def _fetch_coms(vid_id):
