@@ -649,7 +649,7 @@ class EnsembleDataCollector:
         max_pages = max(10, (max_videos // 20) + 2)
 
         while len(videos) < max_videos and pages < max_pages:
-            params: dict = {'name': keyword, 'cursor': cursor}
+            params: dict = {'name': keyword, 'cursor': cursor, 'period': 0}
             if oldest_createtime:
                 params['oldest_createtime'] = oldest_createtime
 
