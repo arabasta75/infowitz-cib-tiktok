@@ -674,10 +674,14 @@ function renderHashtagVideos(d) {
   const existTop=document.getElementById('hashtag-top-authors');if(existTop)existTop.remove();
   const topAuthHtml=_renderTopAuthorsChart(_hashtagVideosData);
   if(topAuthHtml){const topDiv=document.createElement('div');topDiv.id='hashtag-top-authors';topDiv.innerHTML=topAuthHtml;hmDiv.insertAdjacentElement('afterend',topDiv);}
+  // Gini concentration bar
+  const existGini=document.getElementById('hashtag-gini');if(existGini)existGini.remove();
+  const giniHtml=_renderGiniBar(_hashtagVideosData);
+  if(giniHtml){const gDiv=document.createElement('div');gDiv.id='hashtag-gini';gDiv.innerHTML=giniHtml;(document.getElementById('hashtag-top-authors')||hmDiv).insertAdjacentElement('afterend',gDiv);}
   // Co-occurring hashtag bubble cloud
   const existCo=document.getElementById('hashtag-cocloud');if(existCo)existCo.remove();
   const coHtml=_renderHashtagCoCloud(_hashtagVideosData,d.hashtag||'');
-  if(coHtml){const coDiv=document.createElement('div');coDiv.id='hashtag-cocloud';coDiv.innerHTML=coHtml;(document.getElementById('hashtag-top-authors')||hmDiv).insertAdjacentElement('afterend',coDiv);}
+  if(coHtml){const coDiv=document.createElement('div');coDiv.id='hashtag-cocloud';coDiv.innerHTML=coHtml;(document.getElementById('hashtag-gini')||document.getElementById('hashtag-top-authors')||hmDiv).insertAdjacentElement('afterend',coDiv);}
 
   authBtn.style.display = _hashtagAuthorIds.length ? 'inline-block' : 'none';
   authBtn.textContent   = `🔍 Analyser les ${_hashtagAuthorIds.length} auteurs`;
@@ -889,9 +893,10 @@ function renderAccounts(accounts) {
   const scoreHistHtml=_renderScoreHistogram(accounts);
   const nSusp=accounts.filter(a=>a.bot_score<40).length;
   const avgS=accounts.length>0?Math.round(accounts.reduce((s,a)=>s+(a.bot_score??50),0)/accounts.length):50;
+  const scoreArcHtml=_renderScoreArc(avgS,'SCORE MOYEN');
   wrap.innerHTML = `
     <div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:12px">
-      <div><div style="font-size:22px;font-weight:800;color:${avgS<40?'var(--accent)':avgS>=70?'var(--green)':'var(--yellow)'}">${avgS}<span style="font-size:10px;font-weight:400;color:rgba(148,163,184,.6)">/100</span></div><div style="font-size:9px;color:rgba(148,163,184,.6);letter-spacing:.4px">SCORE MOYEN</div></div>
+      <div>${scoreArcHtml}</div>
       <div><div style="font-size:22px;font-weight:800;color:var(--accent)">${nSusp}</div><div style="font-size:9px;color:rgba(148,163,184,.6);letter-spacing:.4px">BOTS DÉTECTÉS <span style="font-size:8px">(${accounts.length>0?Math.round(nSusp/accounts.length*100):0}%)</span></div></div>
       <div><div style="font-size:22px;font-weight:800;color:rgba(148,163,184,.8)">${accounts.length}</div><div style="font-size:9px;color:rgba(148,163,184,.6);letter-spacing:.4px">COMPTES ANALYSÉS</div></div>
       ${scoreHistHtml?`<div style="margin-left:auto">${scoreHistHtml}</div>`:''}
@@ -1282,6 +1287,37 @@ function _renderScoreHistogram(accounts){
   const suspPct=total>0?Math.round(suspicious/total*100):0;
   return`<div style="display:inline-flex;flex-direction:column;gap:2px"><div style="font-size:8px;color:rgba(148,163,184,.6);letter-spacing:.3px">DISTRIBUTION <span style="color:var(--accent)">${suspPct}% suspects</span></div><svg width="${W}" height="${H}" style="display:block">${bars}</svg><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(148,163,184,.4);width:${W}px"><span>0</span><span>50</span><span>100</span></div></div>`;
 }
+/* ── Score arc gauge ─────────────────────────────────────────────────── */
+function _renderScoreArc(score,label){
+  const R=30,CX=36,CY=36,sw=7;
+  const sa=Math.PI*0.75,sweep=Math.PI*1.5;
+  const ea=sa+sweep;
+  const bx1=(CX+R*Math.cos(sa)).toFixed(1),by1=(CY+R*Math.sin(sa)).toFixed(1);
+  const bx2=(CX+R*Math.cos(ea)).toFixed(1),by2=(CY+R*Math.sin(ea)).toFixed(1);
+  const fa=sa+(score/100)*sweep;
+  const fx=(CX+R*Math.cos(fa)).toFixed(1),fy=(CY+R*Math.sin(fa)).toFixed(1);
+  const la=(fa-sa)>Math.PI?1:0;
+  const col=score<40?'var(--accent)':score>=70?'var(--green)':'var(--yellow)';
+  const bg=`<path d="M${bx1},${by1} A${R},${R} 0 1 1 ${bx2},${by2}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="${sw}" stroke-linecap="round"/>`;
+  const arc=score>0?`<path d="M${bx1},${by1} A${R},${R} 0 ${la} 1 ${fx},${fy}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round"/>`:'';
+  return`<div style="display:flex;flex-direction:column;align-items:center"><svg width="${CX*2}" height="${CY+14}" style="overflow:visible">${bg}${arc}<text x="${CX}" y="${CY+2}" text-anchor="middle" font-size="17" font-weight="800" fill="${col}" dominant-baseline="middle">${score}</text><text x="${CX}" y="${CY+16}" text-anchor="middle" font-size="8" fill="rgba(148,163,184,.5)">/100</text></svg>${label?`<div style="font-size:8px;color:rgba(148,163,184,.5);letter-spacing:.3px;margin-top:1px">${escHtml(label)}</div>`:''}</div>`;
+}
+
+/* ── Gini concentration bar ──────────────────────────────────────────── */
+function _renderGiniBar(videos){
+  if(!videos||videos.length<10)return'';
+  const counts={};
+  videos.forEach(v=>{const u=(v.author_unique_id||'').toLowerCase();if(u)counts[u]=(counts[u]||0)+1;});
+  const vals=Object.values(counts).sort((a,b)=>a-b);
+  const n=vals.length,tot=vals.reduce((a,b)=>a+b,0);
+  if(!tot)return'';
+  let gini=0;vals.forEach((v,i)=>{gini+=v*(n-i);});
+  gini=1-(2*gini/(n*tot));
+  const gPct=Math.round(gini*100);
+  const col=gPct>70?'#ef4444':gPct>40?'#f97316':'#4ade80';
+  return`<div style="padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:8px;font-weight:700;color:rgba(148,163,184,.55);letter-spacing:.4px">CONCENTRATION POSTEURS</span><span style="font-size:11px;font-weight:800;color:${col}">Gini ${gPct}%</span></div><div style="height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:${gPct}%;background:${col};border-radius:3px;transition:width .4s"></div></div><div style="font-size:8px;color:rgba(148,163,184,.4);margin-top:3px">${gPct>70?'⚠ Forte concentration — quelques comptes dominent le corpus':gPct>40?'Concentration modérée':'Distribution équilibrée'}</div></div>`;
+}
+
 /* ── Top TikTok authors horizontal bar chart ─────────────────────────── */
 function _renderTopAuthorsChart(videos){
   if(!videos||videos.length<5)return'';
