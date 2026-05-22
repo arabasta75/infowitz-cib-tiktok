@@ -665,6 +665,11 @@ function renderHashtagVideos(d) {
 
   document.getElementById('hashtag-summary').innerHTML =
     `<strong>${_hashtagVideosData.length}</strong> publications · <strong>${_hashtagAuthorIds.length}</strong> auteurs uniques · <span style="color:var(--accent)">#${escHtml(d.hashtag)}</span>`;
+  // Heatmap jour × heure (injection après summary)
+  const existHm=document.getElementById('hashtag-heatmap');if(existHm)existHm.remove();
+  const hmDiv=document.createElement('div');hmDiv.id='hashtag-heatmap';
+  hmDiv.innerHTML=_renderDayHourHeatmap(_hashtagVideosData);
+  document.getElementById('hashtag-summary').parentNode.insertAdjacentElement('afterend',hmDiv);
 
   authBtn.style.display = _hashtagAuthorIds.length ? 'inline-block' : 'none';
   authBtn.textContent   = `🔍 Analyser les ${_hashtagAuthorIds.length} auteurs`;
@@ -873,7 +878,16 @@ function renderAccounts(accounts) {
     wrap.innerHTML = '<div class="empty"><h3>Aucun compte</h3><p>Lancez une analyse depuis l\'onglet "Analyse"</p></div>';
     return;
   }
+  const scoreHistHtml=_renderScoreHistogram(accounts);
+  const nSusp=accounts.filter(a=>a.bot_score<40).length;
+  const avgS=accounts.length>0?Math.round(accounts.reduce((s,a)=>s+(a.bot_score??50),0)/accounts.length):50;
   wrap.innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:12px">
+      <div><div style="font-size:22px;font-weight:800;color:${avgS<40?'var(--accent)':avgS>=70?'var(--green)':'var(--yellow)'}">${avgS}<span style="font-size:10px;font-weight:400;color:rgba(148,163,184,.6)">/100</span></div><div style="font-size:9px;color:rgba(148,163,184,.6);letter-spacing:.4px">SCORE MOYEN</div></div>
+      <div><div style="font-size:22px;font-weight:800;color:var(--accent)">${nSusp}</div><div style="font-size:9px;color:rgba(148,163,184,.6);letter-spacing:.4px">BOTS DÉTECTÉS <span style="font-size:8px">(${accounts.length>0?Math.round(nSusp/accounts.length*100):0}%)</span></div></div>
+      <div><div style="font-size:22px;font-weight:800;color:rgba(148,163,184,.8)">${accounts.length}</div><div style="font-size:9px;color:rgba(148,163,184,.6);letter-spacing:.4px">COMPTES ANALYSÉS</div></div>
+      ${scoreHistHtml?`<div style="margin-left:auto">${scoreHistHtml}</div>`:''}
+    </div>
     <table>
       <thead><tr>
         <th>Compte</th><th>Score</th><th>Verdict</th>
@@ -1213,6 +1227,52 @@ function scoreColor(s) {
   if (s >= 70) return 'var(--green)';
   if (s >= 40) return 'var(--yellow)';
   return 'var(--accent)';
+}
+
+/* ── Day × Hour heatmap ─────────────────────────────────────────────────── */
+function _renderDayHourHeatmap(videos){
+  if(!videos||videos.length<8)return'';
+  const matrix=Array.from({length:7},()=>new Array(24).fill(0));
+  const DAY=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  videos.forEach(v=>{try{const d=new Date(v.created_at||'');if(isNaN(d))return;const dow=(d.getDay()+6)%7;matrix[dow][d.getHours()]++;}catch{}});
+  const peak=Math.max(1,...matrix.flat());
+  const CW=13,CH=11,LW=27,LH=12;
+  const svgW=LW+24*(CW+1)+2,svgH=LH+7*(CH+1)+2;
+  let svg='';
+  for(let h=0;h<24;h+=3)svg+=`<text x="${LW+h*(CW+1)+CW/2}" y="${LH-2}" font-size="7" fill="rgba(148,163,184,.52)" text-anchor="middle">${h}h</text>`;
+  matrix.forEach((row,d)=>{
+    const y=LH+d*(CH+1);
+    svg+=`<text x="${LW-2}" y="${y+CH*0.8}" font-size="7" fill="rgba(148,163,184,.65)" text-anchor="end">${DAY[d]}</text>`;
+    row.forEach((count,h)=>{
+      const x=LW+h*(CW+1),r=count/peak,isNight=h>=2&&h<=5;
+      let fill;
+      if(!count)fill='rgba(15,28,56,.45)';
+      else if(isNight&&r>0.22)fill=`rgba(239,68,68,${(0.22+r*0.78).toFixed(2)})`;
+      else if(r>0.62)fill=`rgba(251,191,36,${(0.38+r*0.62).toFixed(2)})`;
+      else fill=`rgba(254,44,85,${(0.1+r*0.75).toFixed(2)})`;
+      svg+=`<rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="${fill}" rx="2"><title>${DAY[d]} ${h}h : ${count} vidéo(s)</title></rect>`;
+    });
+  });
+  const flat=matrix.flat();
+  const nightTotal=flat.filter((_,i)=>{const h=i%24;return h>=2&&h<=5;}).reduce((a,b)=>a+b,0);
+  const total=flat.reduce((a,b)=>a+b,0);
+  const nightPct=total>0?Math.round(nightTotal/total*100):0;
+  const nightWarn=nightPct>12?`<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171">🌙 ${nightPct}% activité 2h–5h</span>`:'';
+  return `<div style="padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-size:9px;font-weight:700;color:rgba(148,163,184,.7);letter-spacing:.5px">HEATMAP JOUR × HEURE</span>${nightWarn}<span style="font-size:8px;color:rgba(148,163,184,.4);margin-left:auto"><span style="color:rgba(254,44,85,.7)">■</span> actif <span style="color:#fbbf24;margin-left:3px">■</span> pic <span style="color:#ef4444;margin-left:3px">■</span> nuit</span></div><svg width="${svgW}" height="${svgH}" style="display:block;max-width:100%;overflow:visible">${svg}</svg></div>`;
+}
+
+/* ── Score distribution histogram ───────────────────────────────────────── */
+function _renderScoreHistogram(accounts){
+  if(!accounts||accounts.length<3)return'';
+  const bk=new Array(10).fill(0);
+  accounts.forEach(a=>{const s=a.bot_score??null;if(s==null)return;bk[Math.min(9,Math.floor(s/10))]++;});
+  const pk=Math.max(1,...bk);
+  const W=140,H=26,bw=Math.floor(W/10)-1;
+  const bars=bk.map((v,i)=>{const x=i*(bw+1);const bh=Math.max(v>0?2:0,Math.round(v/pk*H));const col=i<4?'var(--accent)':i<7?'var(--yellow)':'var(--green)';return`<rect x="${x}" y="${H-bh}" width="${bw}" height="${bh}" fill="${col}" rx="1" opacity="0.85"><title>${i*10}–${i*10+9}: ${v}</title></rect>`;}).join('');
+  const suspicious=bk.slice(0,4).reduce((a,b)=>a+b,0);
+  const total=bk.reduce((a,b)=>a+b,0);
+  const suspPct=total>0?Math.round(suspicious/total*100):0;
+  return`<div style="display:inline-flex;flex-direction:column;gap:2px"><div style="font-size:8px;color:rgba(148,163,184,.6);letter-spacing:.3px">DISTRIBUTION <span style="color:var(--accent)">${suspPct}% suspects</span></div><svg width="${W}" height="${H}" style="display:block">${bars}</svg><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(148,163,184,.4);width:${W}px"><span>0</span><span>50</span><span>100</span></div></div>`;
 }
 function verdictBadge(v) {
   if (v === 'human')  return '<span class="badge badge-human">Authentique</span>';
