@@ -201,6 +201,47 @@
   .score-modal-box label{display:block;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px}
   .score-modal-box input,.score-modal-box select,.score-modal-box textarea{width:100%}
   .score-modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+  /* ── Round 4 — Premium UI Layer ───────────────────────────────────────── */
+  @keyframes hlb-fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes hlb-popin{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+  @keyframes hlb-bar{from{width:0 !important}}
+  @keyframes hlb-shimmer{from{background-position:-200% center}to{background-position:200% center}}
+
+  #accounts-wrap>*{animation:hlb-fadein .22s ease both}
+  #accounts-wrap>*:nth-child(1){animation-delay:0ms}
+  #accounts-wrap>*:nth-child(2){animation-delay:50ms}
+  #accounts-wrap>*:nth-child(3){animation-delay:90ms}
+  #accounts-wrap>*:nth-child(4){animation-delay:130ms}
+  #accounts-wrap>*:nth-child(5){animation-delay:165ms}
+  #accounts-wrap>*:nth-child(6){animation-delay:195ms}
+  #hashtag-results>*{animation:hlb-fadein .22s ease both}
+
+  .stat-val{animation:hlb-popin .28s cubic-bezier(.34,1.56,.64,1) both;animation-delay:.05s}
+  .score-fill{animation:hlb-bar .55s cubic-bezier(.4,0,.2,1) both;animation-delay:.12s}
+
+  section[data-section-title]{animation:hlb-fadein .2s ease both;transition:box-shadow .2s,border-color .2s}
+  section[data-section-title]:hover{border-color:rgba(254,44,85,.22) !important;box-shadow:0 4px 24px rgba(254,44,85,.08),0 1px 4px rgba(0,0,0,.3) !important}
+
+  .cib-card{background:linear-gradient(135deg,var(--bg2) 0%,rgba(254,44,85,.03) 100%) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 2px 8px rgba(0,0,0,.25);transition:box-shadow .2s,transform .18s}
+  .cib-card:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 20px rgba(0,0,0,.4),0 0 0 1px rgba(254,44,85,.15);transform:translateY(-1px)}
+  .cib-card-title{font-family:var(--mono,monospace) !important;font-size:9px !important;letter-spacing:1.2px !important;border-bottom:1px solid rgba(255,255,255,.06) !important;padding-bottom:6px !important;margin-bottom:8px !important}
+
+  .badge-bot{box-shadow:0 0 8px rgba(254,44,85,.35);text-shadow:0 0 6px rgba(254,44,85,.5)}
+  .badge-human{box-shadow:0 0 8px rgba(0,200,150,.3);text-shadow:0 0 6px rgba(0,200,150,.4)}
+  .badge-unclear{box-shadow:0 0 8px rgba(255,214,10,.3);text-shadow:0 0 6px rgba(255,214,10,.4)}
+
+  .cib-high{box-shadow:0 0 6px rgba(254,44,85,.4)}
+  .cib-mid{box-shadow:0 0 6px rgba(255,214,10,.3)}
+
+  .hlb-acct-table tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
+  .hlb-acct-table tbody tr:hover{background:rgba(254,44,85,.06) !important}
+
+  .pattern-tag:hover{box-shadow:0 0 8px rgba(254,44,85,.4);transform:scale(1.03);transition:all .15s}
+
+  .empty{display:flex !important;align-items:center;justify-content:center;min-height:80px;color:var(--text2)}
+  .progress-bar-fill,.job-progress-fill{background:linear-gradient(90deg,rgba(254,44,85,.7) 0%,var(--accent) 50%,rgba(254,44,85,.7) 100%) !important;background-size:200% auto !important;animation:hlb-shimmer 2s linear infinite}
+  .score-fill{background:linear-gradient(90deg,currentColor 0%,currentColor 100%);animation:hlb-bar .55s cubic-bezier(.4,0,.2,1) both,hlb-shimmer 2.5s linear infinite;background-size:200% auto !important}
 </style>
 </head>
 <body>
