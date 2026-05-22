@@ -670,6 +670,14 @@ function renderHashtagVideos(d) {
   const hmDiv=document.createElement('div');hmDiv.id='hashtag-heatmap';
   hmDiv.innerHTML=_renderDayHourHeatmap(_hashtagVideosData);
   document.getElementById('hashtag-summary').parentNode.insertAdjacentElement('afterend',hmDiv);
+  // Top authors chart
+  const existTop=document.getElementById('hashtag-top-authors');if(existTop)existTop.remove();
+  const topAuthHtml=_renderTopAuthorsChart(_hashtagVideosData);
+  if(topAuthHtml){const topDiv=document.createElement('div');topDiv.id='hashtag-top-authors';topDiv.innerHTML=topAuthHtml;hmDiv.insertAdjacentElement('afterend',topDiv);}
+  // Co-occurring hashtag bubble cloud
+  const existCo=document.getElementById('hashtag-cocloud');if(existCo)existCo.remove();
+  const coHtml=_renderHashtagCoCloud(_hashtagVideosData,d.hashtag||'');
+  if(coHtml){const coDiv=document.createElement('div');coDiv.id='hashtag-cocloud';coDiv.innerHTML=coHtml;(document.getElementById('hashtag-top-authors')||hmDiv).insertAdjacentElement('afterend',coDiv);}
 
   authBtn.style.display = _hashtagAuthorIds.length ? 'inline-block' : 'none';
   authBtn.textContent   = `🔍 Analyser les ${_hashtagAuthorIds.length} auteurs`;
@@ -1274,6 +1282,65 @@ function _renderScoreHistogram(accounts){
   const suspPct=total>0?Math.round(suspicious/total*100):0;
   return`<div style="display:inline-flex;flex-direction:column;gap:2px"><div style="font-size:8px;color:rgba(148,163,184,.6);letter-spacing:.3px">DISTRIBUTION <span style="color:var(--accent)">${suspPct}% suspects</span></div><svg width="${W}" height="${H}" style="display:block">${bars}</svg><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(148,163,184,.4);width:${W}px"><span>0</span><span>50</span><span>100</span></div></div>`;
 }
+/* ── Top TikTok authors horizontal bar chart ─────────────────────────── */
+function _renderTopAuthorsChart(videos){
+  if(!videos||videos.length<5)return'';
+  const counts={};const names={};const followers={};
+  videos.forEach(v=>{
+    const u=(v.author_unique_id||'').toLowerCase();
+    if(!u)return;
+    counts[u]=(counts[u]||0)+1;
+    names[u]=v.author_name||u;
+    if(!followers[u]&&v.author_followers)followers[u]=v.author_followers;
+  });
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(!top.length)return'';
+  const maxN=top[0][1];
+  const W=240;
+  const rows=top.map(([uid,count])=>{
+    const f=followers[uid]??0;
+    const col=f>=100000?'#ef4444':f>=10000?'#f97316':'var(--accent)';
+    const bw=Math.max(4,Math.round(count/maxN*W));
+    const disp=(names[uid]||uid).length>14?(names[uid]||uid).slice(0,13)+'…':(names[uid]||uid);
+    return`<div style="display:grid;grid-template-columns:100px 1fr;align-items:center;gap:6px;margin-bottom:3px"><a href="https://www.tiktok.com/@${encodeURIComponent(uid)}" target="_blank" style="font-size:9px;color:rgba(148,163,184,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;text-align:right;font-family:var(--mono)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='rgba(148,163,184,.75)'" title="@${escHtml(uid)}">@${escHtml(disp)}</a><div style="display:flex;align-items:center;gap:5px"><div style="height:12px;width:${bw}px;background:${col};border-radius:2px;opacity:0.78;flex-shrink:0"></div><span style="font-size:9px;color:${col};font-weight:600">${count}</span></div></div>`;
+  }).join('');
+  return`<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:8px"><div style="font-size:9px;font-weight:700;color:rgba(148,163,184,.6);margin-bottom:7px;letter-spacing:.4px">TOP CRÉATEURS <span style="font-weight:400;opacity:.6">(vidéos dans le corpus)</span></div>${rows}</div>`;
+}
+
+/* ── Co-occurring hashtag bubble cloud ───────────────────────────────── */
+function _renderHashtagCoCloud(videos, searchedTag){
+  if(!videos||videos.length<5)return'';
+  const counts={};
+  const base=(searchedTag||'').toLowerCase().replace(/^#/,'');
+  videos.forEach(v=>{(v.hashtags||[]).forEach(h=>{const t=h.toLowerCase();if(t!==base)counts[t]=(counts[t]||0)+1;});});
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,30);
+  if(top.length<3)return'';
+  const maxC=top[0][1];const sqrtMax=Math.sqrt(maxC);
+  const items=top.map(([tag,count])=>{
+    const ratio=count/maxC;
+    const r=Math.round(8+Math.sqrt(count)/sqrtMax*22);
+    const col=ratio>=0.65?'var(--accent)':ratio>=0.38?'#f97316':ratio>=0.18?'#818cf8':'#475569';
+    return{tag,count,r,col,ratio};
+  });
+  const W=480,PAD=4;
+  let cx=0,cy=0,rowMaxR=0;
+  const placed=items.map(it=>{
+    const d=it.r*2+PAD;
+    if(cx+d>W&&cx>0){cy+=rowMaxR*2+PAD*2;cx=0;rowMaxR=0;}
+    const px=cx+it.r+PAD/2,py=cy+it.r+PAD/2;
+    rowMaxR=Math.max(rowMaxR,it.r);cx+=d;
+    return{...it,px,py};
+  });
+  const svgH=cy+rowMaxR*2+PAD*2+4;
+  const bubbles=placed.map(p=>{
+    const op=(0.35+p.ratio*0.65).toFixed(2);
+    const fs=Math.max(6,Math.min(11,Math.round(p.r*0.6)));
+    const lbl=p.tag.length>8?p.tag.slice(0,7)+'…':'#'+p.tag;
+    return`<g><circle cx="${p.px}" cy="${p.py}" r="${p.r}" fill="${p.col}" opacity="${op}" stroke="${p.col}" stroke-width="1" stroke-opacity=".2"/><text x="${p.px}" y="${p.py}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#fff" font-weight="700" style="pointer-events:none">${escHtml(lbl)}</text><title>#${escHtml(p.tag)}: ${p.count} vidéos</title></g>`;
+  }).join('');
+  return`<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="font-size:9px;font-weight:700;color:rgba(148,163,184,.6);letter-spacing:.4px">HASHTAGS CO-OCCURRENTS</span><span style="font-size:8px;color:rgba(148,163,184,.35)"><span style="color:var(--accent)">●</span> top <span style="color:#f97316;margin-left:3px">●</span> moyen</span></div><svg width="${W}" height="${svgH}" style="display:block;max-width:100%;overflow:visible">${bubbles}</svg></div>`;
+}
+
 function verdictBadge(v) {
   if (v === 'human')  return '<span class="badge badge-human">Authentique</span>';
   if (v === 'bot')    return '<span class="badge badge-bot">Bot</span>';
