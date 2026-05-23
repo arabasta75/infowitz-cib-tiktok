@@ -1290,21 +1290,21 @@ function _renderDayHourHeatmap(videos){
   const DAY=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   videos.forEach(v=>{try{const d=new Date(v.created_at||'');if(isNaN(d))return;const dow=(d.getDay()+6)%7;matrix[dow][d.getHours()]++;}catch{}});
   const peak=Math.max(1,...matrix.flat());
-  const CW=13,CH=11,LW=27,LH=12;
+  const CW=17,CH=14,LW=30,LH=14;
   const svgW=LW+24*(CW+1)+2,svgH=LH+7*(CH+1)+2;
   let svg='';
-  for(let h=0;h<24;h+=3)svg+=`<text x="${LW+h*(CW+1)+CW/2}" y="${LH-2}" font-size="7" fill="rgba(148,163,184,.52)" text-anchor="middle">${h}h</text>`;
+  for(let h=0;h<24;h+=3)svg+=`<text x="${LW+h*(CW+1)+CW/2}" y="${LH-2}" font-size="8" fill="rgba(148,163,184,.55)" text-anchor="middle">${h}h</text>`;
   matrix.forEach((row,d)=>{
     const y=LH+d*(CH+1);
-    svg+=`<text x="${LW-2}" y="${y+CH*0.8}" font-size="7" fill="rgba(148,163,184,.65)" text-anchor="end">${DAY[d]}</text>`;
+    svg+=`<text x="${LW-3}" y="${y+CH*0.8}" font-size="8" fill="rgba(148,163,184,.7)" text-anchor="end">${DAY[d]}</text>`;
     row.forEach((count,h)=>{
       const x=LW+h*(CW+1),r=count/peak,isNight=h>=2&&h<=5;
       let fill;
-      if(!count)fill='rgba(15,28,56,.45)';
-      else if(isNight&&r>0.22)fill=`rgba(239,68,68,${(0.22+r*0.78).toFixed(2)})`;
-      else if(r>0.62)fill=`rgba(251,191,36,${(0.38+r*0.62).toFixed(2)})`;
-      else fill=`rgba(254,44,85,${(0.1+r*0.75).toFixed(2)})`;
-      svg+=`<rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="${fill}" rx="2"><title>${DAY[d]} ${h}h : ${count} vidéo(s)</title></rect>`;
+      if(!count)fill='rgba(15,28,56,.50)';
+      else if(isNight&&r>0.22)fill=`rgba(239,68,68,${(0.28+r*0.72).toFixed(2)})`;
+      else if(r>0.62)fill=`rgba(251,191,36,${(0.42+r*0.58).toFixed(2)})`;
+      else fill=`rgba(254,44,85,${(0.14+r*0.72).toFixed(2)})`;
+      svg+=`<rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="${fill}" rx="3"><title>${DAY[d]} ${h}h : ${count} vidéo(s)</title></rect>`;
     });
   });
   const flat=matrix.flat();
@@ -1312,7 +1312,7 @@ function _renderDayHourHeatmap(videos){
   const total=flat.reduce((a,b)=>a+b,0);
   const nightPct=total>0?Math.round(nightTotal/total*100):0;
   const nightWarn=nightPct>12?`<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171">🌙 ${nightPct}% activité 2h–5h</span>`:'';
-  return `<div style="padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-size:9px;font-weight:700;color:rgba(148,163,184,.7);letter-spacing:.5px">HEATMAP JOUR × HEURE</span>${nightWarn}<span style="font-size:8px;color:rgba(148,163,184,.4);margin-left:auto"><span style="color:rgba(254,44,85,.7)">■</span> actif <span style="color:#fbbf24;margin-left:3px">■</span> pic <span style="color:#ef4444;margin-left:3px">■</span> nuit</span></div><svg width="${svgW}" height="${svgH}" style="display:block;max-width:100%;overflow:visible">${svg}</svg></div>`;
+  return `<div style="padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-size:9px;font-weight:700;color:rgba(148,163,184,.7);letter-spacing:.5px">HEATMAP JOUR × HEURE</span>${nightWarn}<span style="font-size:8px;color:rgba(148,163,184,.4);margin-left:auto"><span style="color:rgba(254,44,85,.7)">■</span> actif <span style="color:#fbbf24;margin-left:3px">■</span> pic <span style="color:#ef4444;margin-left:3px">■</span> nuit</span></div><svg viewBox="0 0 ${svgW} ${svgH}" width="100%" height="${svgH}" style="display:block;overflow:visible">${svg}</svg></div>`;
 }
 
 /* ── Score distribution histogram ───────────────────────────────────────── */
