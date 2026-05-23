@@ -1321,16 +1321,16 @@ function _renderScoreHistogram(accounts){
   const bk=new Array(10).fill(0);
   accounts.forEach(a=>{const s=a.bot_score??null;if(s==null)return;bk[Math.min(9,Math.floor(s/10))]++;});
   const pk=Math.max(1,...bk);
-  const W=140,H=26,bw=Math.floor(W/10)-1;
-  const bars=bk.map((v,i)=>{const x=i*(bw+1);const bh=Math.max(v>0?2:0,Math.round(v/pk*H));const col=i<4?'var(--accent)':i<7?'var(--yellow)':'var(--green)';return`<rect x="${x}" y="${H-bh}" width="${bw}" height="${bh}" fill="${col}" rx="1" opacity="0.85"><title>${i*10}–${i*10+9}: ${v}</title></rect>`;}).join('');
+  const W=240,H=44,bw=Math.floor(W/10)-1;
+  const bars=bk.map((v,i)=>{const x=i*(bw+1);const bh=Math.max(v>0?3:0,Math.round(v/pk*H));const col=i<4?'var(--accent)':i<7?'var(--yellow)':'var(--green)';return`<rect x="${x}" y="${H-bh}" width="${bw}" height="${bh}" fill="${col}" rx="2" opacity="0.85"><title>${i*10}–${i*10+9}: ${v}</title></rect>`;}).join('');
   const suspicious=bk.slice(0,4).reduce((a,b)=>a+b,0);
   const total=bk.reduce((a,b)=>a+b,0);
   const suspPct=total>0?Math.round(suspicious/total*100):0;
-  return`<div style="display:inline-flex;flex-direction:column;gap:2px"><div style="font-size:8px;color:rgba(148,163,184,.6);letter-spacing:.3px">DISTRIBUTION <span style="color:var(--accent)">${suspPct}% suspects</span></div><svg width="${W}" height="${H}" style="display:block">${bars}</svg><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(148,163,184,.4);width:${W}px"><span>0</span><span>50</span><span>100</span></div></div>`;
+  return`<div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:8px;color:rgba(148,163,184,.6);letter-spacing:.3px">DISTRIBUTION <span style="color:var(--accent)">${suspPct}% suspects</span></div><svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${bars}</svg><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(148,163,184,.4)"><span>0</span><span>50</span><span>100</span></div></div>`;
 }
 /* ── Score arc gauge ─────────────────────────────────────────────────── */
 function _renderScoreArc(score,label){
-  const R=30,CX=36,CY=36,sw=7;
+  const R=38,CX=46,CY=46,sw=8;
   const sa=Math.PI*0.75,sweep=Math.PI*1.5;
   const ea=sa+sweep;
   const bx1=(CX+R*Math.cos(sa)).toFixed(1),by1=(CY+R*Math.sin(sa)).toFixed(1);
@@ -1373,13 +1373,12 @@ function _renderTopAuthorsChart(videos){
   const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
   if(!top.length)return'';
   const maxN=top[0][1];
-  const W=240;
   const rows=top.map(([uid,count])=>{
     const f=followers[uid]??0;
     const col=f>=100000?'#ef4444':f>=10000?'#f97316':'var(--accent)';
-    const bw=Math.max(4,Math.round(count/maxN*W));
+    const pct=Math.max(3,Math.round(count/maxN*100));
     const disp=(names[uid]||uid).length>14?(names[uid]||uid).slice(0,13)+'…':(names[uid]||uid);
-    return`<div style="display:grid;grid-template-columns:100px 1fr;align-items:center;gap:6px;margin-bottom:3px"><a href="https://www.tiktok.com/@${encodeURIComponent(uid)}" target="_blank" style="font-size:9px;color:rgba(148,163,184,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;text-align:right;font-family:var(--mono)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='rgba(148,163,184,.75)'" title="@${escHtml(uid)}">@${escHtml(disp)}</a><div style="display:flex;align-items:center;gap:5px"><div style="height:12px;width:${bw}px;background:${col};border-radius:2px;opacity:0.78;flex-shrink:0"></div><span style="font-size:9px;color:${col};font-weight:600">${count}</span></div></div>`;
+    return`<div style="display:grid;grid-template-columns:minmax(70px,22%) 1fr;align-items:center;gap:6px;margin-bottom:4px"><a href="https://www.tiktok.com/@${encodeURIComponent(uid)}" target="_blank" style="font-size:9px;color:rgba(148,163,184,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;text-align:right;font-family:var(--mono)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='rgba(148,163,184,.75)'" title="@${escHtml(uid)}">@${escHtml(disp)}</a><div style="display:flex;align-items:center;gap:5px;min-width:0"><div style="height:13px;width:${pct}%;background:${col};border-radius:2px;opacity:0.82;flex-shrink:0;max-width:100%"></div><span style="font-size:9px;color:${col};font-weight:600;flex-shrink:0">${count}</span></div></div>`;
   }).join('');
   return`<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:8px"><div style="font-size:9px;font-weight:700;color:rgba(148,163,184,.6);margin-bottom:7px;letter-spacing:.4px">TOP CRÉATEURS <span style="font-weight:400;opacity:.6">(vidéos dans le corpus)</span></div>${rows}</div>`;
 }
@@ -1399,7 +1398,7 @@ function _renderHashtagCoCloud(videos, searchedTag){
     const col=ratio>=0.65?'var(--accent)':ratio>=0.38?'#f97316':ratio>=0.18?'#818cf8':'#475569';
     return{tag,count,r,col,ratio};
   });
-  const W=480,PAD=4;
+  const W=560,PAD=5;
   let cx=0,cy=0,rowMaxR=0;
   const placed=items.map(it=>{
     const d=it.r*2+PAD;
@@ -1415,7 +1414,7 @@ function _renderHashtagCoCloud(videos, searchedTag){
     const lbl=p.tag.length>8?p.tag.slice(0,7)+'…':'#'+p.tag;
     return`<g><circle cx="${p.px}" cy="${p.py}" r="${p.r}" fill="${p.col}" opacity="${op}" stroke="${p.col}" stroke-width="1" stroke-opacity=".2"/><text x="${p.px}" y="${p.py}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#fff" font-weight="700" style="pointer-events:none">${escHtml(lbl)}</text><title>#${escHtml(p.tag)}: ${p.count} vidéos</title></g>`;
   }).join('');
-  return`<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="font-size:9px;font-weight:700;color:rgba(148,163,184,.6);letter-spacing:.4px">HASHTAGS CO-OCCURRENTS</span><span style="font-size:8px;color:rgba(148,163,184,.35)"><span style="color:var(--accent)">●</span> top <span style="color:#f97316;margin-left:3px">●</span> moyen</span></div><svg width="${W}" height="${svgH}" style="display:block;max-width:100%;overflow:visible">${bubbles}</svg></div>`;
+  return`<div style="padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-top:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="font-size:9px;font-weight:700;color:rgba(148,163,184,.6);letter-spacing:.4px">HASHTAGS CO-OCCURRENTS</span><span style="font-size:8px;color:rgba(148,163,184,.35)"><span style="color:var(--accent)">●</span> top <span style="color:#f97316;margin-left:3px">●</span> moyen</span></div><svg viewBox="0 0 ${W} ${svgH}" width="100%" height="${svgH}" style="display:block;overflow:visible">${bubbles}</svg></div>`;
 }
 
 function verdictBadge(v) {
