@@ -70,8 +70,10 @@ else:
     except Exception:
         pass
 
+_IS_HTTPS_TK = bool(os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('HTTPS') or os.environ.get('FORCE_HTTPS'))
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+app.config['SESSION_COOKIE_SECURE'] = _IS_HTTPS_TK
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 # ─── Jobs async ───────────────────────────────────────────────────────────────
@@ -98,18 +100,32 @@ def _jobs_gc():
 
 USERS_FILE = os.path.join(_DATA_DIR, 'users.json')
 
+_users_cache: dict | None = None
+_users_cache_ts: float = 0.0
+_USERS_CACHE_TTL = 30.0
+
 def _load_users() -> dict:
-    if os.path.exists(USERS_FILE):
-        try:
-            with open(USERS_FILE) as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+    global _users_cache, _users_cache_ts
+    now = time.time()
+    if _users_cache is None or now - _users_cache_ts > _USERS_CACHE_TTL:
+        if os.path.exists(USERS_FILE):
+            try:
+                with open(USERS_FILE) as f:
+                    _users_cache = json.load(f)
+                    _users_cache_ts = now
+                    return _users_cache
+            except Exception:
+                pass
+        _users_cache = {}
+        _users_cache_ts = now
+    return _users_cache
 
 def _save_users(users: dict):
+    global _users_cache, _users_cache_ts
     with open(USERS_FILE, 'w') as f:
         json.dump(users, f, indent=2)
+    _users_cache = users
+    _users_cache_ts = time.time()
 
 def _ensure_admin():
     users = _load_users()
@@ -140,6 +156,43 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+_LEAD_FREE_QUOTA = int(os.environ.get('LEAD_FREE_QUOTA', '1'))
+
+def require_auth_or_token(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # Session admin
+        if session.get('user_id'):
+            return f(*args, **kwargs)
+        # Lead token
+        token_hdr = (request.headers.get('X-Lead-Token') or '').strip()
+        if token_hdr:
+            lead = _db.lead_get(token_hdr)
+            if not lead:
+                return jsonify({'error': 'Token invalide', 'code': 'INVALID_TOKEN'}), 401
+            if lead['uses'] >= _LEAD_FREE_QUOTA:
+                return jsonify({'error': 'quota_exceeded', 'code': 'QUOTA_EXCEEDED',
+                                'message': 'Votre analyse gratuite a déjà été utilisée.'}), 429
+            request.lead_token = token_hdr
+            return f(*args, **kwargs)
+        return jsonify({'error': 'Non authentifié', 'code': 'AUTH_REQUIRED'}), 401
+    return decorated
+
+def require_auth_or_token_readonly(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get('user_id'):
+            return f(*args, **kwargs)
+        token_hdr = (request.headers.get('X-Lead-Token') or '').strip()
+        if token_hdr:
+            lead = _db.lead_get(token_hdr)
+            if not lead:
+                return jsonify({'error': 'Token invalide', 'code': 'INVALID_TOKEN'}), 401
+            request.lead_token = token_hdr
+            return f(*args, **kwargs)
+        return jsonify({'error': 'Non authentifié', 'code': 'AUTH_REQUIRED'}), 401
+    return decorated
+
 def get_current_user() -> dict | None:
     uid = session.get('user_id')
     if not uid:
@@ -168,6 +221,34 @@ def _utc_now() -> str:
 
 def _safe_err(e, n=120) -> str:
     return re.sub(r'[A-Za-z0-9_\-]{32,}', '***', str(e)[:n])
+
+# ─── Security headers ─────────────────────────────────────────────────────────
+
+@app.after_request
+def _security_headers(resp):
+    resp.headers['X-Frame-Options'] = 'DENY'
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    resp.headers['Permissions-Policy'] = (
+        'accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), '
+        'geolocation=(), gyroscope=(), magnetometer=(), microphone=(), '
+        'payment=(), usb=()'
+    )
+    if _IS_HTTPS_TK:
+        resp.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net unpkg.com; "
+        "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com; "
+        "img-src 'self' data: blob: *; "
+        "connect-src 'self' tiktok-api23.p.rapidapi.com api.groq.com api.openai.com "
+        "api.mistral.ai generativelanguage.googleapis.com openrouter.ai; "
+        "font-src 'self' cdn.jsdelivr.net fonts.gstatic.com; "
+        "frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+    )
+    resp.headers['Content-Security-Policy'] = csp
+    return resp
+
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
@@ -210,6 +291,49 @@ def api_me():
         'has_llm':    bool(cfg.get('groq_key') or cfg.get('openai_key') or
                           cfg.get('mistral_key') or cfg.get('gemini_key')),
     })
+
+@app.route('/api/leads/register', methods=['POST'])
+def api_leads_register():
+    body = request.get_json(silent=True) or {}
+    email      = str(body.get('email', '')).strip().lower()
+    first_name = str(body.get('first_name', '')).strip()
+    last_name  = str(body.get('last_name', '')).strip()
+    company    = str(body.get('company', '')).strip()
+    if not email or '@' not in email:
+        return jsonify({'error': 'Email invalide'}), 400
+    if not first_name or not last_name:
+        return jsonify({'error': 'Prénom et nom requis'}), 400
+    if not company:
+        return jsonify({'error': 'Entreprise requise'}), 400
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    result = _db.lead_register(email, first_name, last_name, company, ip)
+    return jsonify({'token': result['token'], 'uses': result['uses'], 'quota': _LEAD_FREE_QUOTA})
+
+@app.route('/api/leads', methods=['GET'])
+def api_leads_list():
+    leads = _db.leads_list()
+    return jsonify({'leads': leads, 'total': len(leads)})
+
+@app.route('/api/leads/export.csv', methods=['GET'])
+def api_leads_export_csv():
+    import csv, io
+    from flask import Response
+    leads = _db.leads_list()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(['email', 'prenom', 'nom', 'entreprise', 'date_inscription', 'analyses_utilisees', 'ip'])
+    for l in leads:
+        w.writerow([l['email'], l['first_name'], l['last_name'], l['company'],
+                    l['created_at'], l['uses'], l.get('ip', '')])
+    csv_bytes = ('﻿' + out.getvalue()).encode('utf-8')
+    today = datetime.now().strftime('%Y-%m-%d')
+    return Response(csv_bytes, mimetype='text/csv; charset=utf-8',
+                    headers={'Content-Disposition': f'attachment; filename="leads_{today}.csv"'})
+
+@app.route('/api/leads/<token>', methods=['DELETE'])
+def api_leads_delete(token):
+    ok = _db.leads_delete(token)
+    return jsonify({'ok': ok})
 
 @app.route('/api/config', methods=['GET', 'POST'])
 @login_required
@@ -392,7 +516,7 @@ def _run_analysis(job_id: str, handles: list[str], cfg: dict):
 
 
 @app.route('/api/analyze', methods=['POST'])
-@login_required
+@require_auth_or_token
 def api_analyze():
     body    = request.get_json(silent=True) or {}
     handles = body.get('handles') or []
@@ -403,6 +527,9 @@ def api_analyze():
         return jsonify({'error': 'Au moins un @handle requis'}), 400
     if len(handles) > 50:
         return jsonify({'error': 'Max 50 comptes par batch'}), 400
+
+    if hasattr(request, 'lead_token'):
+        _db.lead_increment_uses(request.lead_token)
 
     _jobs_gc()
     job_id = str(uuid.uuid4())
@@ -417,7 +544,7 @@ def api_analyze():
 
 
 @app.route('/api/job/<job_id>')
-@login_required
+@require_auth_or_token_readonly
 def api_job(job_id):
     job = _jobs.get(job_id)
     if not job:
@@ -585,7 +712,7 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
 
 
 @app.route('/api/hashtag/videos', methods=['POST'])
-@login_required
+@require_auth_or_token
 def api_hashtag_videos():
     """Retourne les publications d'un hashtag avec auteur complet + commentaires."""
     body  = request.get_json(silent=True) or {}
@@ -601,6 +728,9 @@ def api_hashtag_videos():
         return jsonify({'error': 'Requête vide'}), 400
     if query.startswith('#'):
         query = '#' + query[1:].replace(' ', '')
+
+    if hasattr(request, 'lead_token'):
+        _db.lead_increment_uses(request.lead_token)
 
     # Timestamps pour filtres
     ts_from: int | None = None
@@ -720,7 +850,7 @@ def api_hashtag_videos():
 
 
 @app.route('/api/scrape/hashtag', methods=['POST'])
-@login_required
+@require_auth_or_token
 def api_scrape_hashtag():
     """Étape 2 (optionnel) : analyse les profils d'une liste de handles."""
     body     = request.get_json(silent=True) or {}
@@ -733,6 +863,9 @@ def api_scrape_hashtag():
         return jsonify({'error': 'Aucun handle fourni'}), 400
     if len(handles) > 100:
         return jsonify({'error': 'Max 100 comptes par batch'}), 400
+
+    if hasattr(request, 'lead_token'):
+        _db.lead_increment_uses(request.lead_token)
 
     _jobs_gc()
     job_id = str(uuid.uuid4())
@@ -758,8 +891,11 @@ def _cib_result_path() -> str:
 
 
 @app.route('/api/cib/run', methods=['POST'])
-@login_required
+@require_auth_or_token
 def api_cib_run():
+    if hasattr(request, 'lead_token'):
+        _db.lead_increment_uses(request.lead_token)
+
     rows = _db.tk_list(limit=500, offset=0)
     unique_ids = [r['unique_id'] for r in rows if r.get('unique_id')]
     if len(unique_ids) < 2:
