@@ -19,6 +19,7 @@ import llm as _llm
 import tiktok_collector as _tk
 import scoring as _scoring
 import cib as _cib
+import report_builder
 
 import logging
 import logging.handlers as _log_handlers
@@ -888,6 +889,39 @@ _CIB_RESULT_FILE = os.path.join(_DATA_DIR if os.path.isabs(
 
 def _cib_result_path() -> str:
     return os.path.join(_DATA_DIR, 'cib_last.json')
+
+
+@app.route('/api/cib/report', methods=['GET'])
+@require_auth_or_token_readonly
+def api_cib_report():
+    """Génère un rapport client HTML autonome (imprimable en PDF) à partir de la
+    dernière analyse CIB TikTok sauvegardée. Renvoie du text/html."""
+    path = _cib_result_path()
+    if not os.path.exists(path):
+        return jsonify({'error': 'Aucune analyse CIB à reporter — lancez d’abord une analyse'}), 404
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            result = json.load(f)
+    except Exception as e:
+        return jsonify({'error': _safe_err(e)}), 500
+
+    meta = {}
+    token = (request.headers.get('X-Lead-Token') or '').strip()
+    lead = _db.lead_get(token) if token else None
+    if lead:
+        meta['company'] = lead.get('company', '')
+        meta['analyst'] = ' '.join(filter(None, [lead.get('first_name'), lead.get('last_name')])).strip()
+    else:
+        u = get_current_user()
+        if u:
+            meta['analyst'] = u.get('username', '')
+
+    try:
+        html_doc = report_builder.build_html_report(result, meta)
+    except Exception as e:
+        logger.exception('report build failed')
+        return jsonify({'error': _safe_err(e)}), 500
+    return Response(html_doc, mimetype='text/html; charset=utf-8')
 
 
 @app.route('/api/cib/run', methods=['POST'])
