@@ -183,7 +183,6 @@ def normalize_tiktok_video(raw: dict) -> dict:
         'music_author':      music.get('authorName') or music.get('author') or '',
         'is_original_sound': bool(music.get('original') or False),
         'author_unique_id':  author.get('uniqueId') or author.get('unique_id') or '',
-        'share_url':         raw.get('shareUrl') or raw.get('share_url') or '',
         '_raw':              raw,
     }
 
