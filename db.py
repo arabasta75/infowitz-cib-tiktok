@@ -22,7 +22,13 @@ def _conn() -> sqlite3.Connection:
     if not getattr(_LOCAL, 'conn', None):
         c = sqlite3.connect(_DB_PATH, check_same_thread=False)
         c.row_factory = sqlite3.Row
+        c.execute("PRAGMA journal_mode=WAL")
+        c.execute("PRAGMA synchronous=NORMAL")
         c.execute("PRAGMA foreign_keys=ON")
+        c.execute("PRAGMA cache_size=-8000")
+        # Attendre un verrou jusqu'à 5 s (threads gunicorn) plutôt qu'échouer.
+        c.execute("PRAGMA busy_timeout=5000")
+        c.execute("PRAGMA temp_store=MEMORY")
         _LOCAL.conn = c
     return _LOCAL.conn
 
@@ -73,6 +79,19 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS ix_tksh_user ON tk_search_history(user_id);
     CREATE INDEX IF NOT EXISTS ix_tksh_ts   ON tk_search_history(ts DESC);
+
+    CREATE TABLE IF NOT EXISTS leads (
+        id          TEXT PRIMARY KEY,
+        email       TEXT NOT NULL,
+        first_name  TEXT NOT NULL,
+        last_name   TEXT NOT NULL,
+        company     TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        ip          TEXT,
+        uses        INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS ix_leads_email ON leads(email);
+    CREATE INDEX IF NOT EXISTS ix_leads_ts ON leads(created_at DESC);
     """)
     c.commit()
 
@@ -247,5 +266,50 @@ def sh_list(user_id: str, limit: int = 200) -> list:
 def sh_delete(record_id: int, user_id: str) -> bool:
     c = _conn()
     cur = c.execute("DELETE FROM tk_search_history WHERE id=? AND user_id=?", (record_id, user_id))
+    c.commit()
+    return cur.rowcount > 0
+
+
+# ─── LEADS ───────────────────────────────────────────────────────────────────
+
+def lead_register(email: str, first_name: str, last_name: str,
+                  company: str, ip: str = None) -> dict:
+    import uuid
+    c = _conn()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + 'Z'
+    existing = c.execute("SELECT id, uses FROM leads WHERE email=?", (email.lower().strip(),)).fetchone()
+    if existing:
+        return {'token': existing['id'], 'uses': existing['uses'], 'is_new': False}
+    token = str(uuid.uuid4())
+    c.execute(
+        "INSERT INTO leads (id, email, first_name, last_name, company, created_at, ip, uses) VALUES (?,?,?,?,?,?,?,0)",
+        (token, email.lower().strip(), first_name.strip(), last_name.strip(), company.strip(), now, ip)
+    )
+    c.commit()
+    return {'token': token, 'uses': 0, 'is_new': True}
+
+def lead_get(token: str) -> dict | None:
+    c = _conn()
+    row = c.execute("SELECT * FROM leads WHERE id=?", (token,)).fetchone()
+    return dict(row) if row else None
+
+def lead_increment_uses(token: str) -> int:
+    c = _conn()
+    c.execute("UPDATE leads SET uses=uses+1 WHERE id=?", (token,))
+    c.commit()
+    row = c.execute("SELECT uses FROM leads WHERE id=?", (token,)).fetchone()
+    return row['uses'] if row else 1
+
+def leads_list(limit: int = 1000) -> list:
+    c = _conn()
+    rows = c.execute(
+        "SELECT id, email, first_name, last_name, company, created_at, ip, uses FROM leads ORDER BY created_at DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+def leads_delete(token: str) -> bool:
+    c = _conn()
+    cur = c.execute("DELETE FROM leads WHERE id=?", (token,))
     c.commit()
     return cur.rowcount > 0

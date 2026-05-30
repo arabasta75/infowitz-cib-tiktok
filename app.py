@@ -56,6 +56,37 @@ try:
 except ImportError:
     pass
 
+# ── Proxy : ne faire confiance à X-Forwarded-* que derrière un proxy déclaré ──
+if os.environ.get('TRUST_PROXY', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    _hops = int(os.environ.get('PROXY_FIX_HOPS', '1'))
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_hops, x_proto=_hops, x_host=_hops, x_port=_hops)
+
+# ── Rate-limiting in-memory (brute-force login + anti-abus leads) ─────────────
+_RL_LOCK = threading.Lock()
+_RL_BUCKETS: dict = {}
+
+def _rate_limit(key: str, max_hits: int, window_secs: int) -> bool:
+    now = time.time()
+    with _RL_LOCK:
+        b = _RL_BUCKETS.get(key)
+        if b is None or now - b['window_start'] >= window_secs:
+            _RL_BUCKETS[key] = {'hits': 1, 'window_start': now}
+            return True
+        if b['hits'] >= max_hits:
+            return False
+        b['hits'] += 1
+        return True
+
+def _rl_key(endpoint: str) -> str:
+    return f"{(request.remote_addr or '').strip()}:{endpoint}"
+
+# ── Validation email + plafond inscriptions (paywall) ────────────────────────
+_LEAD_REGISTER_IP_DAILY = int(os.environ.get('LEAD_REGISTER_IP_DAILY', '3'))
+_EMAIL_VALID_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$', re.I)
+def _is_valid_email(email: str) -> bool:
+    return bool(email and len(email) <= 254 and _EMAIL_VALID_RE.match(email))
+
 _SK_FILE = os.path.join(_DATA_DIR, '.secret_key')
 if os.environ.get('SECRET_KEY'):
     app.secret_key = os.environ['SECRET_KEY']
@@ -130,14 +161,30 @@ def _save_users(users: dict):
 
 def _ensure_admin():
     users = _load_users()
-    if not users:
-        pwd = os.environ.get('ADMIN_PASSWORD', 'tekkai2024')
-        users['admin'] = {
-            'password_hash': generate_password_hash(pwd),
-            'role': 'admin',
-            'config': {},
-        }
-        _save_users(users)
+    if users:
+        return
+    pwd = os.environ.get('ADMIN_PASSWORD') or ''
+    generated = False
+    if not pwd:
+        if os.environ.get('REQUIRE_ADMIN_PASSWORD', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+            raise RuntimeError("ADMIN_PASSWORD non défini et REQUIRE_ADMIN_PASSWORD=1 — refus de créer un admin.")
+        pwd = secrets.token_urlsafe(18)
+        generated = True
+    users['admin'] = {
+        'password_hash': generate_password_hash(pwd),
+        'role': 'admin',
+        'config': {},
+        'must_change_password': True,
+    }
+    _save_users(users)
+    logger.warning("=" * 58)
+    if generated:
+        logger.warning(f"  COMPTE ADMIN CRÉÉ — mot de passe GÉNÉRÉ : {pwd}")
+        logger.warning("  Notez-le : il ne sera plus affiché.")
+    else:
+        logger.warning("  COMPTE ADMIN CRÉÉ avec ADMIN_PASSWORD fourni.")
+    logger.warning("  Changez ce mot de passe dès la première connexion !")
+    logger.warning("=" * 58)
 
 def _get_user(uid: str) -> dict | None:
     return _load_users().get(uid)
@@ -262,6 +309,8 @@ def index():
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
+    if not _rate_limit(_rl_key('login'), max_hits=10, window_secs=300):
+        return jsonify({'error': 'Trop de tentatives — réessayez dans quelques minutes'}), 429
     body = request.get_json(silent=True) or {}
     uid  = (body.get('username') or '').strip().lower()
     pwd  = (body.get('password') or '').strip()
@@ -295,18 +344,21 @@ def api_me():
 
 @app.route('/api/leads/register', methods=['POST'])
 def api_leads_register():
+    if not _rate_limit(_rl_key('lead_register'), max_hits=_LEAD_REGISTER_IP_DAILY, window_secs=86400):
+        return jsonify({'error': "Trop d'inscriptions depuis cette adresse — réessayez plus tard.",
+                        'code': 'RATE_LIMITED'}), 429
     body = request.get_json(silent=True) or {}
     email      = str(body.get('email', '')).strip().lower()
     first_name = str(body.get('first_name', '')).strip()
     last_name  = str(body.get('last_name', '')).strip()
     company    = str(body.get('company', '')).strip()
-    if not email or '@' not in email:
+    if not _is_valid_email(email):
         return jsonify({'error': 'Email invalide'}), 400
     if not first_name or not last_name:
         return jsonify({'error': 'Prénom et nom requis'}), 400
     if not company:
         return jsonify({'error': 'Entreprise requise'}), 400
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    ip = (request.remote_addr or '').strip()
     result = _db.lead_register(email, first_name, last_name, company, ip)
     return jsonify({'token': result['token'], 'uses': result['uses'], 'quota': _LEAD_FREE_QUOTA})
 
@@ -980,9 +1032,17 @@ def health():
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
-if __name__ == '__main__':
+def _startup_init():
+    """Init (admin + schéma DB). Appelé à l'import → tourne sous gunicorn ET en direct."""
     _ensure_admin()
     _db.init_db()
+
+
+_startup_init()
+
+if __name__ == '__main__':
+    # Lancement LOCAL (serveur de dev). En PROD : gunicorn -c gunicorn.conf.py app:app
+    # (cf. Procfile / railway.toml) — _startup_init() ci-dessus tourne aussi sous gunicorn.
     port = int(os.environ.get('PORT', 5006))
-    logger.info(f'Tekkai démarré sur port {port}')
+    logger.info(f'Tekkai (dev) sur port {port}')
     app.run(host='0.0.0.0', port=port, debug=False)
