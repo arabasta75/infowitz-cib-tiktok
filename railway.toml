@@ -2,8 +2,16 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python app.py"
+startCommand = "gunicorn -c gunicorn.conf.py app:app"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+# Variables Railway → Variables :
+#   SECRET_KEY     = python -c "import secrets; print(secrets.token_hex(32))"
+#   ADMIN_PASSWORD = <laisser VIDE → généré dans les logs, ou un mot de passe FORT>
+#   TRUST_PROXY    = 1
+#   CORS_ORIGINS   = https://ton-domaine
+#   TIKFLY_KEY / RAPIDAPI_KEY / GROQ_API_KEY ...
+# Volume → Mount path: /app/data
