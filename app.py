@@ -311,11 +311,13 @@ def api_leads_register():
     return jsonify({'token': result['token'], 'uses': result['uses'], 'quota': _LEAD_FREE_QUOTA})
 
 @app.route('/api/leads', methods=['GET'])
+@login_required
 def api_leads_list():
     leads = _db.leads_list()
     return jsonify({'leads': leads, 'total': len(leads)})
 
 @app.route('/api/leads/export.csv', methods=['GET'])
+@login_required
 def api_leads_export_csv():
     import csv, io
     from flask import Response
@@ -332,6 +334,7 @@ def api_leads_export_csv():
                     headers={'Content-Disposition': f'attachment; filename="leads_{today}.csv"'})
 
 @app.route('/api/leads/<token>', methods=['DELETE'])
+@login_required
 def api_leads_delete(token):
     ok = _db.leads_delete(token)
     return jsonify({'ok': ok})
