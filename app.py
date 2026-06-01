@@ -1040,6 +1040,13 @@ def _startup_init():
 
 _startup_init()
 
+# Sauvegardes SQLite (opt-in via BACKUP_ENABLED=1) — NO-OP sinon.
+try:
+    import backup as _backup
+    _backup.maybe_start_backups(_DATA_DIR)
+except Exception as _e:
+    logger.warning(f"backup init skip: {_e}")
+
 if __name__ == '__main__':
     # Lancement LOCAL (serveur de dev). En PROD : gunicorn -c gunicorn.conf.py app:app
     # (cf. Procfile / railway.toml) — _startup_init() ci-dessus tourne aussi sous gunicorn.
