@@ -206,12 +206,19 @@ def login_required(f):
 
 _LEAD_FREE_QUOTA = int(os.environ.get('LEAD_FREE_QUOTA', '1'))
 
+# Édition de déploiement : 'internal' (équipe, illimité, pas de funnel public)
+# ou 'demo' (public, lead-gate + quota). Même codebase, 2 services Railway.
+EDITION = (os.environ.get('EDITION', 'demo') or 'demo').strip().lower()
+IS_DEMO = EDITION != 'internal'
+
 def require_auth_or_token(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         # Session admin
         if session.get('user_id'):
             return f(*args, **kwargs)
+        if not IS_DEMO:  # édition interne : pas d'accès anonyme par lead token
+            return jsonify({'error': 'Non authentifié', 'code': 'AUTH_REQUIRED'}), 401
         # Lead token
         token_hdr = (request.headers.get('X-Lead-Token') or '').strip()
         if token_hdr:
@@ -231,6 +238,8 @@ def require_auth_or_token_readonly(f):
     def decorated(*args, **kwargs):
         if session.get('user_id'):
             return f(*args, **kwargs)
+        if not IS_DEMO:  # édition interne : pas d'accès anonyme par lead token
+            return jsonify({'error': 'Non authentifié', 'code': 'AUTH_REQUIRED'}), 401
         token_hdr = (request.headers.get('X-Lead-Token') or '').strip()
         if token_hdr:
             lead = _db.lead_get(token_hdr)
@@ -344,6 +353,8 @@ def api_me():
 
 @app.route('/api/leads/register', methods=['POST'])
 def api_leads_register():
+    if not IS_DEMO:  # pas de funnel public en édition interne
+        return jsonify({'error': 'Not found'}), 404
     if not _rate_limit(_rl_key('lead_register'), max_hits=_LEAD_REGISTER_IP_DAILY, window_secs=86400):
         return jsonify({'error': "Trop d'inscriptions depuis cette adresse — réessayez plus tard.",
                         'code': 'RATE_LIMITED'}), 429
