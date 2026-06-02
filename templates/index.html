@@ -246,6 +246,48 @@
 </head>
 <body>
 
+<!-- ══ Lead Gate ════════════════════════════════════════════════ -->
+<div id="lead-gate" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#060810 0%,#0a0e1a 60%,#0f1628 100%);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:440px">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="width:48px;height:48px;background:#fe2c55;border-radius:8px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <h1 style="font-size:22px;font-weight:700;color:#f1f5f9;margin:0 0 6px;letter-spacing:-.3px">Tek<span style="color:#fe2c55">kai</span></h1>
+      <p style="font-size:12px;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin:0">Détection d'inauthenticité · TikTok</p>
+    </div>
+    <div style="background:#0f172a;border:1px solid rgba(254,44,85,.2);border-radius:12px;padding:28px">
+      <p style="font-size:12px;color:#94a3b8;margin:0 0 20px;line-height:1.6">Accédez gratuitement à <strong style="color:#e2e8f0">1 analyse complète</strong> — détection de bots, comportements coordonnés CIB sur TikTok.</p>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label style="font-size:10px;color:#64748b;letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:5px">Prénom</label><input id="lg-firstname" type="text" placeholder="Jean" style="width:100%;background:#0a0e1a;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 10px;font-size:13px;color:#e2e8f0;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='rgba(254,44,85,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'"></div>
+          <div style="flex:1"><label style="font-size:10px;color:#64748b;letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:5px">Nom</label><input id="lg-lastname" type="text" placeholder="Dupont" style="width:100%;background:#0a0e1a;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 10px;font-size:13px;color:#e2e8f0;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='rgba(254,44,85,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'"></div>
+        </div>
+        <div><label style="font-size:10px;color:#64748b;letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:5px">Email professionnel</label><input id="lg-email" type="email" placeholder="jean.dupont@entreprise.com" style="width:100%;background:#0a0e1a;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 10px;font-size:13px;color:#e2e8f0;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='rgba(254,44,85,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'" onkeydown="if(event.key==='Enter')submitLeadGate()"></div>
+        <div><label style="font-size:10px;color:#64748b;letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:5px">Entreprise</label><input id="lg-company" type="text" placeholder="Nom de votre organisation" style="width:100%;background:#0a0e1a;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 10px;font-size:13px;color:#e2e8f0;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='rgba(254,44,85,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'" onkeydown="if(event.key==='Enter')submitLeadGate()"></div>
+        <button id="lg-btn" onclick="submitLeadGate()" style="background:#fe2c55;border:none;border-radius:7px;padding:11px;font-size:13px;font-weight:700;color:white;cursor:pointer;letter-spacing:.3px;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Accéder à l'outil gratuitement →</button>
+        <p id="lg-err" style="display:none;color:#f87171;font-size:11px;text-align:center;margin:0"></p>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:10px;color:#334155;margin-top:14px">En accédant, vous acceptez que vos données soient utilisées pour vous contacter.</p>
+  </div>
+</div>
+
+<!-- ══ Quota CTA ══════════════════════════════════════════════════════════ -->
+<div id="quota-cta" style="display:none;position:fixed;inset:0;background:rgba(6,8,16,.92);z-index:9998;align-items:center;justify-content:center;backdrop-filter:blur(6px)">
+  <div style="background:#0f172a;border:1px solid rgba(254,44,85,.35);border-radius:14px;padding:36px;width:420px;max-width:92vw;text-align:center">
+    <div style="width:44px;height:44px;background:rgba(254,44,85,.15);border:1px solid rgba(254,44,85,.4);border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fe2c55" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+    </div>
+    <h2 style="font-size:18px;font-weight:700;color:#f1f5f9;margin:0 0 8px">Votre analyse gratuite est utilisée</h2>
+    <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0 0 24px">Pour accéder à des analyses illimitées et aux fonctionnalités avancées, contactez-nous pour un accès complet.</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <a href="mailto:contact@lawarroom.com?subject=Accès Tekkai&body=Bonjour, je souhaite un accès complet à Tekkai." style="display:block;background:#fe2c55;border-radius:7px;padding:11px;font-size:13px;font-weight:700;color:white;text-decoration:none;letter-spacing:.3px">Demander un accès complet →</a>
+      <button onclick="document.getElementById('quota-cta').style.display='none'" style="background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:10px;font-size:12px;color:#64748b;cursor:pointer">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ LOGIN ══════════════════════════════════════════════════════════════════ -->
 <div id="login-screen">
   <div class="login-box">
@@ -549,6 +591,60 @@ let _hashtagAuthorIds = [];
 
 const TABS = ['analyse','results','cib','config'];
 
+window.IS_DEMO = {{ 'true' if is_demo else 'false' }};
+
+// ── Lead Token fetch injection ────────────────────────────────────────────────
+const _origFetch = window.fetch.bind(window);
+window.fetch = function(url, opts={}) {
+  if (typeof url === 'string' && url.startsWith('/api')) {
+    const lt = localStorage.getItem('hlb-lead-token');
+    if (lt) {
+      opts = {...opts};
+      opts.headers = {'Content-Type':'application/json', 'X-Lead-Token': lt, ...(opts.headers||{})};
+    }
+    return _origFetch(url, opts).then(r => {
+      const clone = r.clone();
+      clone.json().then(d => { if (d?.code === 'QUOTA_EXCEEDED') _showQuotaCta(); }).catch(()=>{});
+      return r;
+    });
+  }
+  return _origFetch(url, opts);
+};
+
+// ── Lead Gate ─────────────────────────────────────────────────────────────────
+async function submitLeadGate() {
+  const btn = document.getElementById('lg-btn');
+  const err = document.getElementById('lg-err');
+  const first_name = document.getElementById('lg-firstname').value.trim();
+  const last_name  = document.getElementById('lg-lastname').value.trim();
+  const email      = document.getElementById('lg-email').value.trim();
+  const company    = document.getElementById('lg-company').value.trim();
+  err.style.display = 'none';
+  if (!first_name || !last_name) { err.textContent='Prénom et nom requis'; err.style.display='block'; return; }
+  if (!email || !email.includes('@')) { err.textContent='Email invalide'; err.style.display='block'; return; }
+  if (!company) { err.textContent='Entreprise requise'; err.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  try {
+    const r = await _origFetch('/api/leads/register', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, first_name, last_name, company})
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) { err.textContent = data.error || 'Erreur serveur'; err.style.display='block'; btn.disabled=false; btn.textContent="Accéder à l'outil gratuitement →"; return; }
+    localStorage.setItem('hlb-lead-token', data.token);
+    localStorage.setItem('hlb-lead-name', `${first_name} ${last_name}`);
+    localStorage.setItem('hlb-lead-uses', String(data.uses || 0));
+    document.getElementById('lead-gate').style.display = 'none';
+    showApp();
+  } catch(e) { err.textContent = 'Erreur réseau'; err.style.display='block'; btn.disabled=false; btn.textContent="Accéder à l'outil gratuitement →"; }
+}
+
+function _showQuotaCta() {
+  const el = document.getElementById('quota-cta');
+  if (el) el.style.display = 'flex';
+}
+
 // ── Auth ─────────────────────────────────────────────────────────────────────
 async function doLogin(e) {
   e.preventDefault();
@@ -576,9 +672,29 @@ async function doLogout() {
 
 // ── App init ─────────────────────────────────────────────────────────────────
 async function checkAuth() {
-  const r = await fetch('/api/me', {credentials:'include'});
+  // Vérifier session admin en premier
+  const r = await _origFetch('/api/me', {credentials:'include'});
   const d = await r.json();
-  if (d.logged_in) showApp();
+  if (d.logged_in) { showApp(); return; }
+  // Édition interne : pas de funnel public → login équipe (login-screen visible par défaut)
+  if (!window.IS_DEMO) { return; }
+  // Vérifier lead token en localStorage
+  const lt = localStorage.getItem('hlb-lead-token');
+  if (lt) {
+    // Valider que le token existe toujours côté serveur (/api/job/<id> est gated readonly)
+    const vr = await _origFetch('/api/job/ping', {headers:{'X-Lead-Token': lt}}).catch(()=>null);
+    // 404 = token valide (job introuvable), 401 = token invalide
+    if (vr && vr.status === 404) { showApp(); return; }
+    if (!vr || vr.status === 401) {
+      localStorage.removeItem('hlb-lead-token');
+      localStorage.removeItem('hlb-lead-name');
+      localStorage.removeItem('hlb-lead-uses');
+    } else {
+      showApp(); return;
+    }
+  }
+  // Aucune session ni token → afficher le lead gate
+  document.getElementById('lead-gate').style.display = 'flex';
 }
 
 function showApp() {

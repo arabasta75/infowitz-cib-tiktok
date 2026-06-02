@@ -312,9 +312,9 @@ def _security_headers(resp):
 @app.route('/')
 def index():
     if not session.get('user_id'):
-        return render_template('index.html', logged_in=False)
+        return render_template('index.html', logged_in=False, is_demo=IS_DEMO)
     return render_template('index.html', logged_in=True,
-                           user_id=session['user_id'])
+                           user_id=session['user_id'], is_demo=IS_DEMO)
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
