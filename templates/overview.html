@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tekkai · CIB TikTok — Overview</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0E1A;--surface:#0F1624;--panel:#131B2E;--card:#16213A;--border:#1E2D45;
+    --pink:#fe2c55;--blue:#2563EB;--green:#10B981;--amber:#F59E0B;--red:#EF4444;--cyan:#25F4EE;
+    --txt1:#E6EDF7;--txt2:#9FB0C9;--txt3:#5E708C;
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt1);font-family:var(--sans);min-height:100vh;
+    background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+    background-size:40px 40px;background-position:-1px -1px;}
+  .wrap{max-width:1480px;margin:0 auto;padding:24px}
+  header{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+  .brand h1{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:1px}
+  .brand h1 .accent{color:var(--pink)}
+  .brand p{font-family:var(--mono);font-size:11px;color:var(--txt3);margin-top:4px}
+  .header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .badge{font-family:var(--mono);font-size:10px;letter-spacing:.5px;padding:5px 10px;border-radius:5px;border:1px solid var(--border);background:var(--panel);color:var(--txt2)}
+  .badge .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--pink);margin-right:6px;box-shadow:0 0 8px var(--pink)}
+  .btn{font-family:var(--mono);font-size:11px;letter-spacing:.5px;padding:8px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--txt1);text-decoration:none;transition:.15s}
+  .btn:hover{border-color:var(--pink);color:#fff}
+  .btn--ghost{background:transparent}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .kpi__stripe{height:3px}
+  .kpi__body{padding:14px 16px 16px}
+  .kpi__label{font-family:var(--mono);font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);margin-bottom:8px}
+  .kpi__value{font-family:var(--mono);font-size:27px;font-weight:700;line-height:1}
+  .kpi__value .unit{font-size:13px;color:var(--txt2);margin-left:2px}
+  .kpi__sub{font-family:var(--mono);font-size:10px;color:var(--txt3);margin-top:7px}
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 16px 6px}
+  .panel--full{grid-column:1 / -1}
+  .panel__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .panel__title{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.6px}
+  .panel__hint{font-family:var(--mono);font-size:10px;color:var(--txt3)}
+  .chart{width:100%;height:330px}
+  .chart--tall{height:400px}
+  .loading{display:flex;align-items:center;justify-content:center;height:300px;font-family:var(--mono);font-size:12px;color:var(--txt3)}
+  .err{color:var(--red);font-family:var(--mono);font-size:12px;padding:14px}
+  .empty{text-align:center;padding:60px 20px;font-family:var(--mono);color:var(--txt3)}
+  .empty b{color:var(--pink)}
+  @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}
+  @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>TEKKAI<span class="accent"> · CIB TIKTOK</span> — OVERVIEW</h1>
+      <p>Détection de comportements inauthentiques coordonnés sur TikTok</p>
+    </div>
+    <div class="header-actions">
+      <span class="badge" id="engineBadge"><span class="dot"></span>—</span>
+      <button class="btn btn--ghost" id="refreshBtn">↻ Rafraîchir</button>
+      <a class="btn" href="/">← Scanner</a>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"><div class="loading" style="grid-column:1/-1">Chargement du corpus…</div></section>
+  <div id="content"></div>
+</div>
+
+<template id="tpl-grid">
+  <div class="grid">
+    <div class="panel panel--full">
+      <div class="panel__head"><span class="panel__title">DISTRIBUTION DU SCORE D'AUTHENTICITÉ</span>
+        <span class="panel__hint">0 = bot · 100 = humain — seuils ≤40 bot · 40-70 gris · >70 humain</span></div>
+      <div id="chartHist" class="chart chart--tall"></div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><span class="panel__title">FOLLOWERS × AUTHENTICITÉ</span>
+        <span class="panel__hint">détecte l'audience gonflée des bots</span></div>
+      <div id="chartScatter" class="chart chart--tall"></div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><span class="panel__title">RÉPARTITION DES VERDICTS</span></div>
+      <div id="chartVerdict" class="chart"></div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><span class="panel__title">SIGNAUX D'INAUTHENTICITÉ</span>
+        <span class="panel__hint">top 16</span></div>
+      <div id="chartPatterns" class="chart chart--tall"></div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><span class="panel__title">RÉGIONS</span>
+        <span class="panel__hint">concentration géographique</span></div>
+      <div id="chartRegion" class="chart chart--tall"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+const C={bg:'#0A0E1A',pink:'#fe2c55',blue:'#2563EB',green:'#10B981',amber:'#F59E0B',red:'#EF4444',cyan:'#25F4EE',
+  txt1:'#E6EDF7',txt2:'#9FB0C9',txt3:'#5E708C',border:'#1E2D45',grid:'#16213A'};
+const FONT={family:"'SF Mono',ui-monospace,Menlo,monospace",color:C.txt2,size:11};
+const CONFIG={responsive:true,displaylogo:false,modeBarButtonsToRemove:['lasso2d','select2d','toggleSpikelines']};
+function baseLayout(o={}){return Object.assign({
+  paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:FONT,margin:{l:50,r:20,t:14,b:40},
+  xaxis:{gridcolor:C.grid,zerolinecolor:C.border,linecolor:C.border,tickfont:FONT},
+  yaxis:{gridcolor:C.grid,zerolinecolor:C.border,linecolor:C.border,tickfont:FONT},
+  showlegend:false,hoverlabel:{bgcolor:'#131B2E',bordercolor:C.border,font:{color:C.txt1,family:FONT.family}},
+},o);}
+const fmt=n=>n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':String(n);
+
+function renderKpis(k){
+  const cards=[
+    {label:'Comptes',raw:k.total,sub:'corpus analysé',c:C.pink},
+    {label:'% Bot',raw:k.pct_bot,unit:'%',dec:1,sub:'inauthentiques',c:C.red},
+    {label:'Authenticité moy.',raw:k.avg_score,unit:'/100',dec:1,sub:'100=humain · 0=bot',c:C.amber},
+    {label:'Score ≤ 40',raw:k.n_highrisk,sub:'haut risque (bot)',c:C.red},
+    {label:'Flaggés',raw:k.n_flagged,sub:'marqués',c:C.amber},
+    {label:'Vérifiés',raw:k.n_verified,sub:'badge TikTok',c:C.green},
+  ];
+  document.getElementById('kpis').innerHTML=cards.map(c=>`
+    <div class="kpi"><div class="kpi__stripe" style="background:${c.c}"></div>
+      <div class="kpi__body"><div class="kpi__label">${c.label}</div>
+      <div class="kpi__value" data-target="${c.raw}" data-dec="${c.dec||0}" data-unit="${c.unit||''}" style="color:${c.c}">${fmt(c.raw)}${c.unit?`<span class="unit">${c.unit}</span>`:''}</div>
+      <div class="kpi__sub">${c.sub}</div></div></div>`).join('');
+  document.querySelectorAll('.kpi__value').forEach(el=>{
+    const tgt=parseFloat(el.dataset.target)||0,dec=+el.dataset.dec||0;
+    const unit=el.dataset.unit?`<span class="unit">${el.dataset.unit}</span>`:'';
+    if(tgt<=0){el.innerHTML=fmt(tgt)+unit;return;}
+    let cur=0;const steps=26,inc=tgt/steps;let i=0;
+    const t=setInterval(()=>{cur+=inc;i++;if(i>=steps){cur=tgt;clearInterval(t);}
+      el.innerHTML=(dec?(+cur.toFixed(dec)).toLocaleString('fr-FR'):fmt(Math.round(cur)))+unit;},14);
+  });
+}
+function drawHist(h){
+  const colors=h.x.map(x=>x<=40?C.red:x<=70?C.amber:C.green);
+  Plotly.newPlot('chartHist',[{type:'bar',x:h.x,y:h.y,marker:{color:colors,line:{width:0}},width:4.4,
+    hovertemplate:'authenticité %{x:.0f}<br>%{y} comptes<extra></extra>'}],baseLayout({
+    bargap:0.05,
+    xaxis:{title:{text:'score d\'authenticité (0=bot · 100=humain)',font:FONT},range:[0,100],gridcolor:C.grid,linecolor:C.border,tickfont:FONT},
+    yaxis:{title:{text:'comptes',font:FONT},gridcolor:C.grid,linecolor:C.border,tickfont:FONT},
+    shapes:[{type:'line',x0:40,x1:40,y0:0,y1:1,yref:'paper',line:{color:C.txt3,width:1,dash:'dot'}},
+            {type:'line',x0:70,x1:70,y0:0,y1:1,yref:'paper',line:{color:C.txt3,width:1,dash:'dot'}}],
+  }),CONFIG);
+}
+function drawVerdict(v){
+  Plotly.newPlot('chartVerdict',[{type:'pie',labels:v.labels,values:v.values,hole:.62,sort:false,
+    marker:{colors:v.colors,line:{color:C.bg,width:2}},textinfo:'percent',
+    textfont:{color:'#fff',family:FONT.family,size:12},
+    hovertemplate:'%{label}<br>%{value} (%{percent})<extra></extra>'}],baseLayout({
+    margin:{l:10,r:10,t:10,b:30},showlegend:true,
+    legend:{orientation:'h',y:-0.05,font:FONT,bgcolor:'rgba(0,0,0,0)'},
+    annotations:[{text:fmt(v.values.reduce((a,b)=>a+b,0)),showarrow:false,font:{color:C.txt1,family:FONT.family,size:20}}]
+  }),CONFIG);
+}
+function drawScatter(s){
+  Plotly.newPlot('chartScatter',[{type:'scattergl',mode:'markers',x:s.x,y:s.y.map(v=>Math.max(v,1)),text:s.text,
+    marker:{color:s.color,size:s.size.map(v=>6+Math.min(16,Math.sqrt(v||1)*1.6)),opacity:.75,line:{width:0}},
+    hovertemplate:'%{text}<br>authenticité %{x}<br>followers %{y}<extra></extra>'}],baseLayout({
+    margin:{l:64,r:18,t:10,b:44},
+    xaxis:{title:{text:'authenticité',font:FONT},range:[0,100],gridcolor:C.grid,linecolor:C.border,tickfont:FONT},
+    yaxis:{title:{text:'followers (log)',font:FONT},type:'log',gridcolor:C.grid,linecolor:C.border,tickfont:FONT},
+    shapes:[{type:'line',x0:40,x1:40,y0:0,y1:1,yref:'paper',line:{color:C.txt3,width:1,dash:'dot'}},
+            {type:'line',x0:70,x1:70,y0:0,y1:1,yref:'paper',line:{color:C.txt3,width:1,dash:'dot'}}],
+  }),CONFIG);
+}
+function hbar(id,items,colorscale){
+  if(!items.length){document.getElementById(id).innerHTML='<div class="loading">—</div>';return;}
+  const x=items.map(d=>d.count).reverse(),y=items.map(d=>d.pattern||d.region).reverse();
+  Plotly.newPlot(id,[{type:'bar',orientation:'h',x,y,marker:{color:x,colorscale,line:{width:0}},
+    hovertemplate:'%{y}: %{x}<extra></extra>'}],baseLayout({margin:{l:180,r:24,t:8,b:32},
+    xaxis:{gridcolor:C.grid,linecolor:C.border,tickfont:FONT},
+    yaxis:{automargin:true,tickfont:{...FONT,size:10},linecolor:C.border}}),CONFIG);
+}
+
+async function load(force){
+  try{
+    const r=await fetch('/api/tk/overview'+(force?'?force=1':''),{credentials:'same-origin'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    document.getElementById('engineBadge').innerHTML=`<span class="dot"></span>${d.engine||'—'} · ${fmt(d.total||0)} comptes`;
+    if(!d.total){
+      document.getElementById('kpis').innerHTML='';
+      document.getElementById('content').innerHTML='<div class="empty">Aucun compte dans le corpus.<br>Lancez une analyse depuis le <b>Scanner</b>, ou seedez une démo :<br><code>python seed_demo.py</code></div>';
+      return;
+    }
+    renderKpis(d.kpis);
+    document.getElementById('content').appendChild(document.getElementById('tpl-grid').content.cloneNode(true));
+    drawHist(d.score_hist); drawScatter(d.followers_scatter); drawVerdict(d.verdict);
+    hbar('chartPatterns',d.patterns,[[0,C.blue],[0.5,C.amber],[1,C.red]]);
+    hbar('chartRegion',d.regions,[[0,C.pink],[1,C.cyan]]);
+    const ids=['chartHist','chartScatter','chartVerdict','chartPatterns','chartRegion'];
+    const resizeAll=()=>ids.forEach(i=>{const el=document.getElementById(i);if(el&&el.classList.contains('js-plotly-plot'))Plotly.Plots.resize(el);});
+    requestAnimationFrame(resizeAll);setTimeout(resizeAll,160);window.addEventListener('resize',resizeAll);
+  }catch(e){document.getElementById('kpis').innerHTML='<div class="err">Erreur : '+e.message+'</div>';}
+}
+document.getElementById('refreshBtn').addEventListener('click',()=>{document.getElementById('content').innerHTML='';load(true);});
+load(false);
+</script>
+</body>
+</html>

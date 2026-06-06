@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 import requests as _requests
 
 import db as _db
+import viz_overview as _viz
 import llm as _llm
 import tiktok_collector as _tk
 import scoring as _scoring
@@ -196,9 +197,20 @@ def _save_user_config(uid: str, cfg: dict):
     users[uid]['config'] = cfg
     _save_users(users)
 
+# Bypass auth en DEV uniquement (DEV_AUTH_BYPASS=1 + requête localhost) — cohérent
+# avec hlb-engine / socialpulse. JAMAIS activé en prod.
+_DEV_AUTH_BYPASS = os.environ.get('DEV_AUTH_BYPASS', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+def _is_localhost():
+    if not _DEV_AUTH_BYPASS:
+        return False
+    return request.remote_addr in ('127.0.0.1', '::1', 'localhost')
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        if _is_localhost():
+            return f(*args, **kwargs)
         if not session.get('user_id'):
             return jsonify({'error': 'auth required'}), 401
         return f(*args, **kwargs)
@@ -214,8 +226,8 @@ IS_DEMO = EDITION != 'internal'
 def require_auth_or_token(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Session admin
-        if session.get('user_id'):
+        # Session admin / bypass dev localhost
+        if _is_localhost() or session.get('user_id'):
             return f(*args, **kwargs)
         if not IS_DEMO:  # édition interne : pas d'accès anonyme par lead token
             return jsonify({'error': 'Non authentifié', 'code': 'AUTH_REQUIRED'}), 401
@@ -236,7 +248,7 @@ def require_auth_or_token(f):
 def require_auth_or_token_readonly(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if session.get('user_id'):
+        if _is_localhost() or session.get('user_id'):
             return f(*args, **kwargs)
         if not IS_DEMO:  # édition interne : pas d'accès anonyme par lead token
             return jsonify({'error': 'Non authentifié', 'code': 'AUTH_REQUIRED'}), 401
@@ -441,6 +453,25 @@ def api_config():
     return jsonify({'ok': True})
 
 # ─── Stats ────────────────────────────────────────────────────────────────────
+
+@app.route('/overview')
+def overview_page():
+    """Dashboard CIB Overview (corpus de comptes TikTok, Plotly + Polars)."""
+    resp = app.make_response(render_template('overview.html'))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp
+
+
+@app.route('/api/tk/overview')
+@require_auth_or_token_readonly
+def api_tk_overview():
+    """Agrégats corpus global TikTok (caché 60s, Polars). Sert /overview."""
+    force = request.args.get('force') == '1'
+    data = _viz.get_overview(force=force)
+    resp = jsonify(data)
+    resp.headers['Cache-Control'] = 'private, max-age=60'
+    return resp
+
 
 @app.route('/api/stats')
 @login_required
