@@ -265,6 +265,10 @@ def require_auth_or_token_readonly(f):
 def get_current_user() -> dict | None:
     uid = session.get('user_id')
     if not uid:
+        # DEV bypass : login_required laisse passer sur localhost sans session →
+        # fournir un admin fallback pour éviter les 500 sur u['id'] (cohérent hlb-engine).
+        if _is_localhost():
+            return {'id': 'admin', 'username': 'admin', 'role': 'admin', 'config': {}}
         return None
     u = _get_user(uid)
     if u:
