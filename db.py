@@ -308,6 +308,38 @@ def leads_list(limit: int = 1000) -> list:
     ).fetchall()
     return [dict(r) for r in rows]
 
+def leads_activity(limit: int = 1000, searches_per_lead: int = 50) -> list:
+    """Prospects + leurs recherches (tk_search_history.user_id == leads.id).
+
+    Chaque lead reçoit une clé 'searches' (plus récente d'abord) + bucket 'anon'
+    pour les recherches d'avant le rattachement.
+    """
+    c = _conn()
+    leads = leads_list(limit)
+    by_id = {l['id']: {**l, 'searches': []} for l in leads}
+    rows = c.execute(
+        "SELECT user_id, keyword, mode, ts, account_count FROM tk_search_history ORDER BY ts DESC"
+    ).fetchall()
+    anon = {'id': 'anon', 'email': '—', 'first_name': '(anonyme', 'last_name': 'avant rattachement)',
+            'company': '—', 'created_at': '', 'ip': '', 'uses': 0, 'searches': []}
+    for r in rows:
+        d = dict(r)
+        bucket = by_id.get(d['user_id'])
+        if bucket is None:
+            if d['user_id'] == 'anon':
+                bucket = anon
+            else:
+                continue  # compte équipe/admin → hors vue prospects
+        if len(bucket['searches']) < searches_per_lead:
+            bucket['searches'].append({
+                'keyword': d['keyword'], 'mode': d['mode'], 'ts': d['ts'],
+                'article_count': d['account_count'],
+            })
+    out = list(by_id.values())
+    if anon['searches']:
+        out.append(anon)
+    return out
+
 def leads_delete(token: str) -> bool:
     c = _conn()
     cur = c.execute("DELETE FROM leads WHERE id=?", (token,))

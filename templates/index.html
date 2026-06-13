@@ -315,6 +315,7 @@
       <button onclick="showTab('results')">Résultats</button>
       <button class="tab-cib-btn" onclick="showTab('cib')">Réseau CIB</button>
       <button onclick="showTab('config')">Config</button>
+      <button id="tab-prospects-btn" style="display:none" onclick="showTab('prospects')">👤 Prospects</button>
     </nav>
     <div class="header-right">
       <div class="stat-chip">Total <span id="h-total">—</span></div>
@@ -539,6 +540,17 @@
         </div>
       </div>
 
+      <!-- ── PROSPECTS (admin) ──────────────────────────────────────────── -->
+      <div class="tab-pane" id="tab-prospects">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <input type="text" id="prospects-search" placeholder="Filtrer (nom, email, société, recherche)…" style="font-size:12px;padding:6px 10px;width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)" oninput="renderProspects()">
+          <button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="loadProspects()">↻ Actualiser</button>
+          <a class="btn-primary" style="padding:6px 14px;font-size:12px;text-decoration:none" href="/api/leads/export.csv">⬇ Export CSV</a>
+          <span style="font-size:12px;color:var(--text2);margin-left:auto">Prospects : <b id="prospects-total" style="color:var(--text)">—</b> · Recherches : <b id="prospects-searches-total" style="color:var(--text)">—</b></span>
+        </div>
+        <div id="prospects-body"></div>
+      </div>
+
     </div><!-- /content -->
   </main>
 </div>
@@ -591,7 +603,7 @@ let _scoreUid       = null;
 let _scrapeMode     = 'handles';
 let _hashtagAuthorIds = [];
 
-const TABS = ['analyse','results','cib','config'];
+const TABS = ['analyse','results','cib','config','prospects'];
 
 window.IS_DEMO = {{ 'true' if is_demo else 'false' }};
 
@@ -663,7 +675,7 @@ async function doLogin(e) {
     });
     const d = await r.json();
     if (!r.ok) { err.textContent = d.error||'Erreur'; err.style.display='block'; return; }
-    showApp();
+    showApp(true);
   } catch(ex) { err.textContent = ex.message; err.style.display='block'; }
 }
 
@@ -677,7 +689,7 @@ async function checkAuth() {
   // Vérifier session admin en premier
   const r = await _origFetch('/api/me', {credentials:'include'});
   const d = await r.json();
-  if (d.logged_in) { showApp(); return; }
+  if (d.logged_in) { showApp(true); return; }
   // Édition interne : pas de funnel public → login équipe (login-screen visible par défaut)
   if (!window.IS_DEMO) { return; }
   // Vérifier lead token en localStorage
@@ -699,9 +711,14 @@ async function checkAuth() {
   document.getElementById('lead-gate').style.display = 'flex';
 }
 
-function showApp() {
+function showApp(isAdmin) {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  if (isAdmin) {
+    window._isAdminSession = true;
+    const tp = document.getElementById('tab-prospects-btn');
+    if (tp) tp.style.display = '';  // onglet Prospects réservé admin
+  }
   loadStats();
   loadAccounts();
   loadConfig();
@@ -716,6 +733,50 @@ function showTab(name) {
   });
   if (name === 'results') loadAccounts();
   if (name === 'cib') loadCIBResult();
+  if (name === 'prospects') loadProspects();
+}
+
+// ── Prospects (vue admin) ───────────────────────────────────────────────────
+let _prospectsData = [];
+function _escP(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+function _fmtDateP(ts){if(!ts)return'—';const d=new Date(ts);return isNaN(d)?ts:d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
+async function loadProspects() {
+  const body = document.getElementById('prospects-body');
+  if (!body) return;
+  body.innerHTML = '<p style="font-size:12px;color:var(--text2);padding:16px">Chargement…</p>';
+  try {
+    const r = await _origFetch('/api/leads/activity', {credentials:'include'});
+    const d = await r.json();
+    if (d.error) { body.innerHTML = `<p style="font-size:12px;color:#f87171;padding:16px">${d.error}</p>`; return; }
+    _prospectsData = d.leads || [];
+    document.getElementById('prospects-total').textContent = d.total ?? _prospectsData.length;
+    document.getElementById('prospects-searches-total').textContent = d.total_searches ?? 0;
+    renderProspects();
+  } catch(e) { body.innerHTML = '<p style="font-size:12px;color:#f87171;padding:16px">Erreur réseau</p>'; }
+}
+function renderProspects() {
+  const body = document.getElementById('prospects-body');
+  const q = (document.getElementById('prospects-search').value || '').toLowerCase().trim();
+  let leads = _prospectsData;
+  if (q) leads = leads.filter(l => `${l.first_name} ${l.last_name} ${l.email} ${l.company} ${(l.searches||[]).map(s=>s.keyword).join(' ')}`.toLowerCase().includes(q));
+  if (!leads.length) { body.innerHTML = '<p style="font-size:12px;color:var(--text2);padding:16px">Aucun prospect.</p>'; return; }
+  body.innerHTML = leads.map(l => {
+    const searches = l.searches || [];
+    const isAnon = l.id === 'anon';
+    const rows = searches.length
+      ? searches.map(s => `<tr><td style="padding:4px 10px;color:var(--text2);white-space:nowrap">${_fmtDateP(s.ts)}</td><td style="padding:4px 10px"><span style="font-family:monospace">"${_escP(s.keyword)}"</span></td><td style="padding:4px 10px"><span style="font-size:10px;padding:1px 6px;border-radius:4px;background:var(--bg3);color:var(--text2)">${_escP(s.mode)}</span></td><td style="padding:4px 10px;color:var(--text2);text-align:right">${s.article_count ?? 0} compte(s)</td></tr>`).join('')
+      : '<tr><td colspan="4" style="padding:6px 10px;color:var(--text2);font-style:italic">Inscrit, aucune recherche lancée</td></tr>';
+    return `<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg2)">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${_escP(l.first_name)} ${_escP(l.last_name)}${isAnon?'':` <span style="font-weight:400;color:var(--text2)">· ${_escP(l.company)}</span>`}</div>
+          <div style="font-size:11px;color:var(--text2)">${isAnon?'recherches antérieures au rattachement':`${_escP(l.email)} · inscrit le ${_fmtDateP(l.created_at)}${l.ip?` · IP ${_escP(l.ip)}`:''}`}</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:var(--text2)"><b style="color:var(--text);font-size:15px">${searches.length}</b><br>recherche${searches.length>1?'s':''}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">${rows}</table>
+    </div>`;
+  }).join('');
 }
 
 // ── Scraping mode ─────────────────────────────────────────────────────────────

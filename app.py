@@ -271,6 +271,14 @@ def get_current_user() -> dict | None:
         u['id'] = uid
     return u
 
+def _attrib_uid() -> str:
+    """uid pour attribuer une recherche : compte connecté, sinon lead token, sinon 'anon'.
+    À appeler dans le contexte requête (pas dans un thread de job)."""
+    u = get_current_user()
+    if u:
+        return str(u['id'])
+    return getattr(request, 'lead_token', None) or 'anon'
+
 def get_cfg() -> dict:
     u = get_current_user()
     base = u.get('config', {}) if u else {}
@@ -390,6 +398,14 @@ def api_leads_register():
 def api_leads_list():
     leads = _db.leads_list()
     return jsonify({'leads': leads, 'total': len(leads)})
+
+@app.route('/api/leads/activity', methods=['GET'])
+@login_required
+def api_leads_activity():
+    """Prospects + leurs recherches (vue admin 'Activité Prospects')."""
+    leads = _db.leads_activity()
+    total_searches = sum(len(l.get('searches') or []) for l in leads)
+    return jsonify({'leads': leads, 'total': len(leads), 'total_searches': total_searches})
 
 @app.route('/api/leads/export.csv', methods=['GET'])
 @login_required
@@ -527,7 +543,7 @@ def api_delete_account(unique_id):
 
 # ─── Analyse async ────────────────────────────────────────────────────────────
 
-def _run_analysis(job_id: str, handles: list[str], cfg: dict):
+def _run_analysis(job_id: str, handles: list[str], cfg: dict, owner_uid: str = 'anon'):
     job = _jobs[job_id]
     try:
         results = []
@@ -599,7 +615,7 @@ def _run_analysis(job_id: str, handles: list[str], cfg: dict):
                 results.append({'handle': handle, 'error': _safe_err(e)})
 
         _db.sh_insert(
-            user_id='admin',
+            user_id=owner_uid,
             keyword=', '.join(handles),
             mode='account',
             account_count=len([r for r in results if not r.get('error')]),
@@ -637,7 +653,7 @@ def api_analyze():
             'msg': 'Démarrage…', 'ts': time.time(), 'results': [],
         }
     cfg = get_cfg()
-    _executor.submit(_run_analysis, job_id, handles, cfg)
+    _executor.submit(_run_analysis, job_id, handles, cfg, _attrib_uid())
     return jsonify({'ok': True, 'job_id': job_id})
 
 
@@ -701,7 +717,7 @@ Donne un verdict structuré : verdict, niveau de confiance, analyse des signaux,
 
 # ─── Scraping par hashtag ─────────────────────────────────────────────────────
 
-def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
+def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict, owner_uid: str = 'anon'):
     job = _jobs[job_id]
     try:
         collector = _tk.get_collector(cfg)
@@ -795,7 +811,7 @@ def _run_hashtag_scrape(job_id: str, hashtag: str, max_videos: int, cfg: dict):
                 results.append({'handle': uid, 'error': _safe_err(e)})
 
         _db.sh_insert(
-            user_id='admin',
+            user_id=owner_uid,
             keyword=f'#{hashtag}',
             mode='hashtag',
             account_count=len([r for r in results if not r.get('error')]),
@@ -935,7 +951,7 @@ def api_hashtag_videos():
             'comment_data':      comments_map.get(vid_id, []),
         })
 
-    _db.sh_insert(user_id='admin', keyword=query, mode='hashtag_videos',
+    _db.sh_insert(user_id=_attrib_uid(), keyword=query, mode='hashtag_videos',
                   account_count=len(author_ids))
 
     return jsonify({
@@ -973,7 +989,7 @@ def api_scrape_hashtag():
             'msg': f'Analyse de {len(handles)} auteurs…', 'ts': time.time(), 'results': [],
         }
     cfg = get_cfg()
-    _executor.submit(_run_analysis, job_id, handles, cfg)
+    _executor.submit(_run_analysis, job_id, handles, cfg, _attrib_uid())
     return jsonify({'ok': True, 'job_id': job_id})
 
 
